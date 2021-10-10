@@ -11,8 +11,8 @@ private:
 	static std::vector<Tile> getAdjacentNodes(Tile current);
 	static bool lineOfSight(Tile current, Tile neighbor);
 	static double totalCostToReachNode(Tile current);
-	static double distanceBetweenNodes(Tile current, Tile neighbor);
-	static double estimatedDistanceFromCurrentToGoal(Tile current);
+	static double inline distanceBetweenNodes(Tile current, Tile neighbor);
+	static double inline estimatedDistanceFromCurrentToGoal(Tile current);
 
 	static Path path;
 	static std::unordered_map<Tile, double> gValues;
