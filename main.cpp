@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 const uint32_t HEIGHT = 600;
@@ -58,6 +60,16 @@ public:
 	}
 
 private:
+	struct QueueFamilyIndices
+	{
+		std::optional<uint32_t> graphicsFamily;
+
+		bool isComplete()
+		{
+			return graphicsFamily.has_value();
+		}
+	};
+
 	void initWindow()
 	{
 		glfwInit();
@@ -73,6 +85,7 @@ private:
 	{
 		createInstance();
 		setupDebugMessenger();
+		pickPhysicalDevice();
 	}
 
 	void mainLoop()
@@ -230,9 +243,127 @@ private:
 		return VK_FALSE;
 	}
 
+	/*
+	* Select a graphics card that supports the necessary features
+	*/
+	void pickPhysicalDevice()
+	{
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+		if (deviceCount == 0)
+		{
+			throw std::runtime_error("Failed to find GPU with Vulkan support!");
+		}
+
+		std::vector<VkPhysicalDevice> gpuDevices(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, gpuDevices.data());
+
+		std::vector<VkPhysicalDevice> gpuSelections = std::vector<VkPhysicalDevice>();
+
+		for (const auto& gpu : gpuDevices)
+		{
+			if (isPhysicalDeviceSuitable(gpu))
+			{
+				gpuSelections.push_back(gpu);
+			}
+		}
+
+		if (gpuSelections.empty())
+		{
+			throw std::runtime_error("Failed to find a suitable GPU!");
+		}
+		else
+		{
+			std::cout << "\n~ Select Physical Graphics Device ~" << std::endl;
+			std::unordered_map<int, VkPhysicalDevice> physicalDeviceMap = std::unordered_map<int, VkPhysicalDevice>();
+			int idx = 1;
+			for (std::vector<VkPhysicalDevice>::iterator gpuIter = gpuSelections.begin(); gpuIter != gpuSelections.end(); gpuIter++)
+			{
+				physicalDeviceMap.insert(std::pair<int, VkPhysicalDevice>(idx, *gpuIter));
+
+				VkPhysicalDeviceProperties deviceProperties;
+				vkGetPhysicalDeviceProperties(*gpuIter, &deviceProperties);
+
+				std::cout << "[" << idx << "] " << deviceProperties.deviceName << std::endl;
+				idx++;
+			}
+
+			int selection = 0;
+			while (physicalDevice == VK_NULL_HANDLE)
+			{
+				std::cin >> selection;
+				try
+				{
+					physicalDevice = physicalDeviceMap.at(selection);
+				}
+				catch (const std::exception& e)
+				{
+					std::cerr << "Invalid graphics device. Specify a different option." << std::endl;
+				}
+			}
+
+			VkPhysicalDeviceProperties deviceProperties;
+			vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+
+			std::cout << "Graphics Device Selected: " << deviceProperties.deviceName << std::endl;
+		}
+	}
+
+	/*
+	* Identify required queue families for executing commands
+	*/
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+	{
+		// Currently only require a queue family that supports graphics commands
+		QueueFamilyIndices indices;
+
+		std::optional<uint32_t> graphicsFamily;
+
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+		int i = 0;
+		for (const auto& queueFamily : queueFamilies)
+		{
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i;
+			}
+
+			if (indices.isComplete())
+			{
+				break;
+			}
+
+			i++;
+		}
+
+		return indices;
+	}
+
+	bool isPhysicalDeviceSuitable(VkPhysicalDevice device)
+	{
+		// Query the device's name, type, and supported Vulkan version
+		VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+		// Query support for texture compression, 64-bit floats, and multi-viewport rendering
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		QueueFamilyIndices indices = findQueueFamilies(device);
+
+		return indices.isComplete();
+	}
+
 	GLFWwindow* window;
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 };
 
 int main()
