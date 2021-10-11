@@ -151,21 +151,23 @@
   <ItemGroup>
     <ClInclude Include="Grid.h" />
     <ClInclude Include="Path.h" />
-    <ClInclude Include="RenderingSettings.h" />
+    <ClInclude Include="VulkanSettings.h" />
     <ClInclude Include="Search.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Tile.h" />
+    <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Grid.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Path.cpp" />
-    <ClCompile Include="RenderingSettings.cpp" />
+    <ClCompile Include="VulkanSettings.cpp" />
     <ClCompile Include="Search.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="targetver.cpp" />
     <ClCompile Include="Tile.cpp" />
+    <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Barriers.txt" />
