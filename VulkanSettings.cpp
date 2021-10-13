@@ -15,6 +15,7 @@ void VulkanSettings::init()
 	createInstance();
 	setupDebugMessenger();
 	pickPhysicalDevice();
+	createLogicalDevice();
 }
 
 VkResult VulkanSettings::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
@@ -178,6 +179,8 @@ void VulkanSettings::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreat
 
 void VulkanSettings::cleanUp()
 {
+	vkDestroyDevice(logicalDevice, nullptr);
+
 	if (ENABLE_VALIDATION_LAYERS)
 	{
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -307,11 +310,58 @@ bool VulkanSettings::isPhysicalDeviceSuitable(VkPhysicalDevice device)
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-	// Query support for texture compression, 64-bit floats, and multi-viewport rendering
-	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-
 	QueueFamilyIndices indices = findQueueFamilies(device);
 
 	return indices.isComplete();
+}
+
+/*
+* Logical device interfaces with the physical device and denotes which features to use
+* Specifies which command queues to create
+*/
+void VulkanSettings::createLogicalDevice()
+{
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+	// Structure defines the number of queues desired from a single queue family (currently only concerned with graphics family)
+	VkDeviceQueueCreateInfo queueCreateInfo{};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+	queueCreateInfo.queueCount = 1;
+
+	// Priority of queue for use in scheduling execution on the command buffer
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	// Query support for texture compression, 64-bit floats, and multi-viewport rendering
+	VkPhysicalDeviceFeatures deviceFeatures{};
+
+	// Define the 'createInfo' of the logical device
+	VkDeviceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pQueueCreateInfos = &queueCreateInfo;
+	createInfo.queueCreateInfoCount = 1;
+	createInfo.pEnabledFeatures = &deviceFeatures;
+
+	/* Define logical device validation layers
+	 * This is for legacy Vulkan support as current versions use the same attributes as the Vulkan instance
+	 */
+	createInfo.enabledExtensionCount = 0;
+	if (ENABLE_VALIDATION_LAYERS)
+	{
+		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+		createInfo.ppEnabledLayerNames = validationLayers.data();
+	}
+	else
+	{
+		createInfo.enabledLayerCount = 0;
+	}
+
+	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &logicalDevice) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create logical device!");
+	}
+
+	// Grab a handle to the specific queue (graphics)
+	vkGetDeviceQueue(logicalDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
 }
