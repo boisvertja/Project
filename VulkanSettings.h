@@ -2,8 +2,11 @@
 #include "stdafx.h"
 #include <cstdlib>
 #include <cstring>
-#include <unordered_map>
 #include <optional>
+#include <set>
+#include <unordered_map>
+
+#include "Window.h"
 
 #ifdef NDEBUG
 const bool ENABLE_VALIDATION_LAYERS = false;
@@ -21,10 +24,12 @@ private:
 	struct QueueFamilyIndices
 	{
 		std::optional<uint32_t> graphicsFamily;
+		std::optional<uint32_t> presentFamily;
 
 		bool isComplete()
 		{
-			return graphicsFamily.has_value();
+			return graphicsFamily.has_value()
+				&& presentFamily.has_value();
 		}
 	};
 
@@ -51,6 +56,7 @@ private:
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 	bool isPhysicalDeviceSuitable(VkPhysicalDevice device);
 	void createLogicalDevice();
+	void createSurface();
 
 private:
 	VkInstance instance;
@@ -58,4 +64,6 @@ private:
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice logicalDevice;
 	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+	VkSurfaceKHR surface;
 };

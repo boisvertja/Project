@@ -12,6 +12,8 @@ int main()
 		{
 			glfwPollEvents();
 		}
+
+		std::cout << "\nCleaning resources..." << std::endl;
 		Window::cleanUp();
 	}
 	catch (const std::exception& e)

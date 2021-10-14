@@ -14,6 +14,7 @@ void VulkanSettings::init()
 {
 	createInstance();
 	setupDebugMessenger();
+	createSurface();
 	pickPhysicalDevice();
 	createLogicalDevice();
 }
@@ -165,14 +166,14 @@ void VulkanSettings::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreat
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 
 	createInfo.messageSeverity = 
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-		| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-		| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+		//| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 
 	createInfo.messageType = 
-		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-		| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-		| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		//VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+		//| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 
 	createInfo.pfnUserCallback = debugCallback;
 }
@@ -186,9 +187,10 @@ void VulkanSettings::cleanUp()
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	}
 
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyInstance(instance, nullptr);
 
-	std::cout << "\nVulkan instance resources cleaned up." << std::endl;
+	std::cout << "Vulkan instance resources cleaned up." << std::endl;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanSettings::debugCallback(
@@ -234,7 +236,7 @@ void VulkanSettings::pickPhysicalDevice()
 	}
 	else
 	{
-		std::cout << "\n~ Select Physical Graphics Device ~" << std::endl;
+		std::cout << "~ Select Physical Graphics Device ~" << std::endl;
 		std::unordered_map<int, VkPhysicalDevice> physicalDeviceMap = std::unordered_map<int, VkPhysicalDevice>();
 		int idx = 1;
 		for (std::vector<VkPhysicalDevice>::iterator gpuIter = gpuSelections.begin(); gpuIter != gpuSelections.end(); gpuIter++)
@@ -293,6 +295,15 @@ VulkanSettings::QueueFamilyIndices VulkanSettings::findQueueFamilies(VkPhysicalD
 			indices.graphicsFamily = i;
 		}
 
+		// Look for queue family that has capability of presenting to window surface
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+		if (presentSupport)
+		{
+			indices.presentFamily = i;
+		}
+
 		if (indices.isComplete())
 		{
 			break;
@@ -306,10 +317,6 @@ VulkanSettings::QueueFamilyIndices VulkanSettings::findQueueFamilies(VkPhysicalD
 
 bool VulkanSettings::isPhysicalDeviceSuitable(VkPhysicalDevice device)
 {
-	// Query the device's name, type, and supported Vulkan version
-	VkPhysicalDeviceProperties deviceProperties;
-	vkGetPhysicalDeviceProperties(device, &deviceProperties);
-
 	QueueFamilyIndices indices = findQueueFamilies(device);
 
 	return indices.isComplete();
@@ -323,15 +330,24 @@ void VulkanSettings::createLogicalDevice()
 {
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-	// Structure defines the number of queues desired from a single queue family (currently only concerned with graphics family)
-	VkDeviceQueueCreateInfo queueCreateInfo{};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-	queueCreateInfo.queueCount = 1;
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	std::set<uint32_t> uniqueQueueFamilies = {
+		indices.graphicsFamily.value(),
+		indices.presentFamily.value()
+	};
 
 	// Priority of queue for use in scheduling execution on the command buffer
 	float queuePriority = 1.0f;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
+	for (uint32_t queueFamily : uniqueQueueFamilies)
+	{
+		// Structure defines the number of queues desired from a single queue family (currently only concerned with graphics family)
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = queueFamily;
+		queueCreateInfo.queueCount = 1;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+		queueCreateInfos.push_back(queueCreateInfo);
+	}
 
 	// Query support for texture compression, 64-bit floats, and multi-viewport rendering
 	VkPhysicalDeviceFeatures deviceFeatures{};
@@ -339,8 +355,8 @@ void VulkanSettings::createLogicalDevice()
 	// Define the 'createInfo' of the logical device
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pQueueCreateInfos = &queueCreateInfo;
-	createInfo.queueCreateInfoCount = 1;
+	createInfo.pQueueCreateInfos = queueCreateInfos.data();
+	createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	createInfo.pEnabledFeatures = &deviceFeatures;
 
 	/* Define logical device validation layers
@@ -362,6 +378,15 @@ void VulkanSettings::createLogicalDevice()
 		throw std::runtime_error("Failed to create logical device!");
 	}
 
-	// Grab a handle to the specific queue (graphics)
+	// Grab a handle to the specific queue (graphics and presentation)
 	vkGetDeviceQueue(logicalDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
+	vkGetDeviceQueue(logicalDevice, indices.presentFamily.value(), 0, &presentQueue);
+}
+
+void VulkanSettings::createSurface()
+{
+	if (glfwCreateWindowSurface(instance, &Window::getInstance(), nullptr, &surface) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create window surface!");
+	}
 }
