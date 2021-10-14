@@ -4,15 +4,15 @@
 class Window
 {
 public:
-	Window();
-	~Window();
-	GLFWwindow* getWindow() const;
+	static GLFWwindow &getInstance();
+	static void cleanUp();
 
 private:
-	void init();
-	void cleanUp();
+	Window();
+	~Window();
+	static void init();
 
-	GLFWwindow* window;
+	static GLFWwindow* window;
 	static const uint32_t HEIGHT = 600;
 	static const uint32_t WIDTH = 800;
 };

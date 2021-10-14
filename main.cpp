@@ -3,15 +3,16 @@
 
 int main()
 {
-	Window window = Window();
-	VulkanSettings vkSettings = VulkanSettings();
-
 	try
 	{
-		while (!glfwWindowShouldClose(window.getWindow()))
+		GLFWwindow& window = Window::getInstance();
+		VulkanSettings vkSettings = VulkanSettings();
+
+		while (!glfwWindowShouldClose(&window))
 		{
 			glfwPollEvents();
 		}
+		Window::cleanUp();
 	}
 	catch (const std::exception& e)
 	{

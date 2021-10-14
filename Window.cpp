@@ -1,13 +1,19 @@
 #include "Window.h"
 
-Window::Window()
+GLFWwindow* Window::window = nullptr;
+
+GLFWwindow& Window::getInstance()
 {
-	init();
+	if (window == nullptr)
+	{
+		init();
+	}	
+
+	return *window;
 }
 
 Window::~Window()
 {
-	cleanUp();
 }
 
 void Window::init()
@@ -21,14 +27,9 @@ void Window::init()
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Project", nullptr, nullptr);
 }
 
-GLFWwindow* Window::getWindow() const
-{
-	return window;
-}
-
 void Window::cleanUp()
 {
-	glfwDestroyWindow(window);
+	glfwDestroyWindow(&Window::getInstance());
 	glfwTerminate();
 	std::cout << "GLFW resources cleaned up." << std::endl;
 }
