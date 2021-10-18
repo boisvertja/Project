@@ -82,6 +82,7 @@ private:
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void createSwapChain();
+	void createImageViews();
 
 private:
 	VkInstance instance;
@@ -99,4 +100,6 @@ private:
 	VkFormat swapchainImageFormat;
 	// Defines the size of the images that can be rendered to the window handle
 	VkExtent2D swapchainExtent;
+
+	std::vector<VkImageView> swapchainImageViews;
 };
