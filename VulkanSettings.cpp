@@ -19,6 +19,7 @@ void VulkanSettings::init()
 	createLogicalDevice();
 	createSwapChain();
 	createImageViews();
+	createGraphicsPipeline();
 }
 
 VkResult VulkanSettings::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
@@ -599,6 +600,9 @@ void VulkanSettings::createSwapChain()
 	swapchainExtent = extent;
 }
 
+/*
+* Create an ImageView for each image in the swapchain. Each ImageView defines how the specific image should be 'viewed' (plain 2D, depth, texture mapped, etc.)
+*/
 void VulkanSettings::createImageViews()
 {
 	swapchainImageViews.resize(swapchainImages.size());
@@ -633,4 +637,77 @@ void VulkanSettings::createImageViews()
 			throw std::runtime_error("Failed to create image views!");
 		}
 	}
+}
+
+void VulkanSettings::createGraphicsPipeline()
+{
+	auto vertShaderCode = readFile("Shaders/vert.spv");
+	auto fragShaderCode = readFile("Shaders/frag.spv");
+
+	// Shader bytecode is converted to machine code upon creation of the graphics pipeline
+	// This allows us to create the modules as local variables rather than class as we'll destroy them afterwards
+	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertShaderStageInfo.module = vertShaderModule;
+	vertShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo shaderStages[] =
+	{
+		vertShaderStageInfo,
+		fragShaderStageInfo
+	};
+
+	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+}
+
+std::vector<char> VulkanSettings::readFile(const std::string& filename)
+{
+	// ate specifies reading at the end of the file
+	// binary states the file should be read as a binary file
+	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open())
+	{
+		throw std::runtime_error("Failed to open file!");
+	}
+
+	// Use 'ate' to begin at the end of the file in order to allocate the buffer to be the size of the file's contents
+	size_t fileSize = (size_t)file.tellg();
+	std::vector<char> buffer(fileSize);
+
+	// Return to the beginning of the file and read all the bytes at once
+	file.seekg(0);
+	file.read(buffer.data(), fileSize);
+
+	file.close();
+	return buffer;
+}
+
+VkShaderModule VulkanSettings::createShaderModule(const std::vector<char>& code)
+{
+	VkShaderModuleCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = code.size();
+
+	// Cast pointer from char* to uint32_t* using reinterpret cast
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create shader module!");
+	}
+
+	return shaderModule;
 }

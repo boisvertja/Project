@@ -151,6 +151,7 @@
   <ItemGroup>
     <ClInclude Include="Grid.h" />
     <ClInclude Include="Path.h" />
+    <ClInclude Include="Shader.h" />
     <ClInclude Include="VulkanSettings.h" />
     <ClInclude Include="Search.h" />
     <ClInclude Include="stdafx.h" />
@@ -162,6 +163,7 @@
     <ClCompile Include="Grid.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Path.cpp" />
+    <ClCompile Include="Shader.cpp" />
     <ClCompile Include="VulkanSettings.cpp" />
     <ClCompile Include="Search.cpp" />
     <ClCompile Include="stdafx.cpp" />
@@ -171,6 +173,10 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="Barriers.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\shader.frag" />
+    <None Include="Shaders\shader.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

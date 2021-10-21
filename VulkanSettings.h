@@ -4,6 +4,7 @@
 #include <cstdint> // UINT32_MAX
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -83,6 +84,9 @@ private:
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void createSwapChain();
 	void createImageViews();
+	void createGraphicsPipeline();
+	static std::vector<char> readFile(const std::string& filename);
+	VkShaderModule createShaderModule(const std::vector<char>& code);
 
 private:
 	VkInstance instance;
