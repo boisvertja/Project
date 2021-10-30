@@ -1,10 +1,9 @@
 #pragma once
 #include "stdafx.h"
 #include <algorithm>
-#include <cstdint> // UINT32_MAX
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -20,10 +19,12 @@ const bool ENABLE_VALIDATION_LAYERS = true;
 class VulkanSettings
 {
 public:
+
 	VulkanSettings();
 	~VulkanSettings();
 
 private:
+
 	struct QueueFamilyIndices
 	{
 		std::optional<uint32_t> graphicsFamily;
@@ -40,7 +41,7 @@ private:
 	{
 		// Information regarding the images the physical device supports rendering to (number supported for swapchain, min/max width and height)
 		VkSurfaceCapabilitiesKHR capabilities;
-		
+
 		// Physical device's supported pixel format, color space, etc.
 		std::vector<VkSurfaceFormatKHR> formats;
 
@@ -73,42 +74,22 @@ private:
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData);
 	void pickPhysicalDevice();
-	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 	bool isPhysicalDeviceSuitable(VkPhysicalDevice device);
 	void createLogicalDevice();
-	void createSurface();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-	void createSwapChain();
-	void createImageViews();
-	void createGraphicsPipeline();
-	static std::vector<char> readFile(const std::string& filename);
-	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createRenderPass();
+	void createSurface();
 
 private:
+
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
 	
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice logicalDevice;
-	
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
 	VkSurfaceKHR surface;
+	QueueFamilyIndices queueIndices;
 
-	VkSwapchainKHR swapchain;
-	std::vector<VkImage> swapchainImages;
-	VkFormat swapchainImageFormat;
-	// Defines the size of the images that can be rendered to the window handle
-	VkExtent2D swapchainExtent;
-
-	std::vector<VkImageView> swapchainImageViews;
-
-	VkRenderPass renderPass;
-	VkPipelineLayout pipelineLayout;
-	VkPipeline graphicsPipeline;
+	friend class Renderer;
 };

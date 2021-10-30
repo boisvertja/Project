@@ -1,19 +1,19 @@
-#include "VulkanSettings.h"
-#include "Window.h"
+#include "Renderer.h"
 
 int main()
 {
 	try
 	{
 		GLFWwindow& window = Window::getInstance();
-		VulkanSettings vkSettings = VulkanSettings();
+		Renderer renderer = Renderer();
 
 		while (!glfwWindowShouldClose(&window))
 		{
 			glfwPollEvents();
 		}
 
-		std::cout << "\nCleaning resources..." << std::endl;
+		log("\nCleaning resources...");
+		log("=========================");
 		Window::cleanUp();
 	}
 	catch (const std::exception& e)
