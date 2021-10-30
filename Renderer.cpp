@@ -18,6 +18,7 @@ void Renderer::init()
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
+	createFramebuffers();
 }
 
 void Renderer::grabHandlesForQueues()
@@ -28,6 +29,11 @@ void Renderer::grabHandlesForQueues()
 
 void Renderer::cleanUp()
 {
+	for (auto framebuffer : swapchainFramebuffers)
+	{
+		vkDestroyFramebuffer(vkSettings.logicalDevice, framebuffer, nullptr);
+	}
+
 	vkDestroyPipeline(vkSettings.logicalDevice, graphicsPipeline, nullptr);
 	log("Graphics pipeline destroyed.");
 
@@ -450,4 +456,37 @@ VkPresentModeKHR Renderer::chooseSwapPresentMode(const std::vector<VkPresentMode
 
 	// If not available (or on mobile) use a standard queue to render images
 	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+/*
+* Create framebuffers to reference all of the imageViews that represent the attachments
+* Each framebuffer associates each ImageView (and its image) with the renderPass / subpass / attachments we want to run on each
+*/
+void Renderer::createFramebuffers()
+{
+	// Create a single framebuffer for each imageView in the swapchain
+	swapchainFramebuffers.resize(swapchainImageViews.size());
+
+	for (size_t i = 0; i < swapchainImageViews.size(); i++)
+	{
+		VkImageView attachments[] =
+		{
+			swapchainImageViews[i]
+		};
+
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass; // Which renderPass the framebuffer needs to be compatible with
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments; // Specifies the imageViews that should be bound to the attachment descriptions in the renderPass 'pAttachment' array
+		framebufferInfo.width = swapchainExtent.width;
+		framebufferInfo.height = swapchainExtent.height;
+		framebufferInfo.layers = 1;
+
+		if (vkCreateFramebuffer(vkSettings.logicalDevice, &framebufferInfo, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create framebuffer!");
+		}
+	}
+	log("Framebuffers created successfully.");
 }

@@ -19,6 +19,7 @@ private:
 	void createGraphicsPipeline();
 	void createRenderPass();
 	void grabHandlesForQueues();
+	void createFramebuffers();
 
 private:
 	VkQueue graphicsQueue;
@@ -31,6 +32,7 @@ private:
 	VkExtent2D swapchainExtent;
 
 	std::vector<VkImageView> swapchainImageViews;
+	std::vector<VkFramebuffer> swapchainFramebuffers;
 
 	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
