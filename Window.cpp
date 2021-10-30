@@ -31,5 +31,5 @@ void Window::cleanUp()
 {
 	glfwDestroyWindow(&Window::getInstance());
 	glfwTerminate();
-	std::cout << "GLFW resources cleaned up." << std::endl;
+	log("GLFW resources cleaned up.");
 }

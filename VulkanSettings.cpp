@@ -93,6 +93,19 @@ void VulkanSettings::createInstance()
 		throw std::runtime_error("Failed to create instance!");
 	}
 	log("Vulkan instance created successfully.");
+
+	// Log the Vulkan API version used
+	uint32_t vkInstanceVersion = appInfo.apiVersion;
+	if (vkEnumerateInstanceVersion)
+	{
+		vkEnumerateInstanceVersion(&vkInstanceVersion);
+	}
+
+	uint32_t major = VK_VERSION_MAJOR(vkInstanceVersion);
+	uint32_t minor = VK_VERSION_MINOR(vkInstanceVersion);
+	uint32_t patch = VK_VERSION_PATCH(vkInstanceVersion);
+
+	log("Vulkan API Version: " << major << "." << minor << "." << patch);
 }
 
 bool VulkanSettings::checkValidationLayerSupport()
