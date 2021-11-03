@@ -20,6 +20,8 @@ private:
 	void createRenderPass();
 	void grabHandlesForQueues();
 	void createFramebuffers();
+	void createCommandPool();
+	void createCommandBuffers();
 
 private:
 	VkQueue graphicsQueue;
@@ -37,6 +39,8 @@ private:
 	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
+	VkCommandPool commandPool;
+	std::vector<VkCommandBuffer> commandBuffers;
 
 	VulkanSettings vkSettings = VulkanSettings();
 };

@@ -92,14 +92,11 @@ void VulkanSettings::createInstance()
 	{
 		throw std::runtime_error("Failed to create instance!");
 	}
-	log("Vulkan instance created successfully.");
+	log("Vulkan instance created.");
 
 	// Log the Vulkan API version used
 	uint32_t vkInstanceVersion = appInfo.apiVersion;
-	if (vkEnumerateInstanceVersion)
-	{
-		vkEnumerateInstanceVersion(&vkInstanceVersion);
-	}
+	vkEnumerateInstanceVersion(&vkInstanceVersion);
 
 	uint32_t major = VK_VERSION_MAJOR(vkInstanceVersion);
 	uint32_t minor = VK_VERSION_MINOR(vkInstanceVersion);
@@ -172,7 +169,7 @@ void VulkanSettings::setupDebugMessenger()
 	{
 		throw std::runtime_error("Failed to setup debug messenger for configuring validation layer logging!");
 	}
-	log("DebugMessenger created successfully.");
+	log("DebugMessenger created.");
 }
 
 void VulkanSettings::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
@@ -464,5 +461,5 @@ void VulkanSettings::createSurface()
 	{
 		throw std::runtime_error("Failed to create window surface!");
 	}
-	log("Window surface created successfully.");
+	log("Window surface created.");
 }
