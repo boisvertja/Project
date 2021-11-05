@@ -10,6 +10,11 @@ VulkanSettings::~VulkanSettings()
 	cleanUp();
 }
 
+VkDevice VulkanSettings::getLogicalDevice() const
+{
+	return logicalDevice;
+}
+
 void VulkanSettings::init()
 {
 	createInstance();

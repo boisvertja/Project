@@ -21,6 +21,7 @@ void Renderer::init()
 	createFramebuffers();
 	createCommandPool();
 	createCommandBuffers();
+	createSemaphores();
 }
 
 void Renderer::grabHandlesForQueues()
@@ -31,6 +32,10 @@ void Renderer::grabHandlesForQueues()
 
 void Renderer::cleanUp()
 {
+	vkDestroySemaphore(vkSettings.logicalDevice, renderFinishedSemaphore, nullptr);
+	vkDestroySemaphore(vkSettings.logicalDevice, imageAvailableSemaphore, nullptr);
+	log("Semaphores destroyed.");
+
 	vkDestroyCommandPool(vkSettings.logicalDevice, commandPool, nullptr);
 
 	for (auto framebuffer : swapchainFramebuffers)
@@ -209,12 +214,27 @@ void Renderer::createRenderPass()
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &colorAttachmentRef;
 
+	// This implicit subpass refers to the operations that execute right before / after the actual subpass
+	VkSubpassDependency dependency{};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+
+	// Index '0' refers to the actual subpass (the first and only one)
+	dependency.dstSubpass = 0;
+
+	// Specify the operations to wait on and the stages in which these operations occur
+	// In this case, we want to wait for the swapchain to finish reading the image before we access it, 
+	// this can be accomplished by waiting on the color attachment
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = 1;
 	renderPassInfo.pAttachments = &colorAttachment;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &dependency;
 
 	if (vkCreateRenderPass(vkSettings.logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 	{
@@ -575,4 +595,81 @@ void Renderer::createCommandBuffers()
 		}
 	}
 	log("Command buffers recorded.");
+}
+
+/*
+* Semaphores are needed to ensure that the command queues 
+(acquiring image from swapchain, execute command buffer with that image, return image to swapchain for presentation) don't occur out of order
+*/
+void Renderer::createSemaphores()
+{
+	VkSemaphoreCreateInfo semaphoreInfo{};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	if (vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create semaphores!");
+	}
+	log("Semaphores created.");
+}
+
+void Renderer::drawFrame()
+{
+	// Acquire an image from the swapchain
+	// UINT64_MAX disables timeout in nanoseconds for an image to become available
+	// Image index refers to the image in swapchain image array. This is used to select the correct command buffer
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	// Specify which semaphores to wait on before execution begins and in which stage of the pipeline to wait
+	// In this case, don't write colors to the image until it's available
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores;
+	submitInfo.pWaitDstStageMask = waitStages;
+
+	// Specify which command buffer to submit for execution (ensure the command buffer used (imageIndex) corresponds to the image in the swapchain associated to the command buffer
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+	// Specify which semaphores to signal once the previous command buffer has finished execution (let the 'renderFinishedSemaphore' know it's good to go)
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+
+	// Submit the command buffer to the graphics queue
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to submit the draw command buffer!");
+	}
+
+	// Submit the result to the swapchain for presentation
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+	// Which semaphores to wait on before presentation can happen
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	VkSwapchainKHR swapchains[] = { swapchain };
+	presentInfo.swapchainCount = 1;
+
+	// Swapchain to present images to and the index of the image for each swapchain
+	presentInfo.pSwapchains = swapchains;
+	presentInfo.pImageIndices = &imageIndex;
+
+	presentInfo.pResults = nullptr;
+
+	// Present an image to the swapchain
+	vkQueuePresentKHR(presentQueue, &presentInfo);
+}
+
+VulkanSettings Renderer::getVulkanSettings() const
+{
+	return vkSettings;
 }

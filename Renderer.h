@@ -7,6 +7,8 @@ class Renderer
 public:
 	Renderer();
 	~Renderer();
+	void drawFrame();
+	VulkanSettings getVulkanSettings() const;
 
 private:
 	void init();
@@ -22,6 +24,7 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 	void createCommandBuffers();
+	void createSemaphores();
 
 private:
 	VkQueue graphicsQueue;
@@ -41,6 +44,9 @@ private:
 	VkPipeline graphicsPipeline;
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffers;
+
+	VkSemaphore imageAvailableSemaphore;
+	VkSemaphore renderFinishedSemaphore;
 
 	VulkanSettings vkSettings = VulkanSettings();
 };

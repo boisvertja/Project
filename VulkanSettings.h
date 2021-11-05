@@ -22,6 +22,7 @@ public:
 
 	VulkanSettings();
 	~VulkanSettings();
+	VkDevice getLogicalDevice() const;
 
 private:
 

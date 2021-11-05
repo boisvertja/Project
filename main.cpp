@@ -10,7 +10,10 @@ int main()
 		while (!glfwWindowShouldClose(&window))
 		{
 			glfwPollEvents();
+			renderer.drawFrame();
 		}
+
+		vkDeviceWaitIdle(renderer.getVulkanSettings().getLogicalDevice());
 
 		log("\nCleaning resources...");
 		log("=========================");
