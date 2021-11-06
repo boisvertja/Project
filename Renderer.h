@@ -24,7 +24,7 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 	void createCommandBuffers();
-	void createSemaphores();
+	void createSyncObjects();
 
 private:
 	VkQueue graphicsQueue;
@@ -45,8 +45,12 @@ private:
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffers;
 
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore renderFinishedSemaphore;
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkFence> inFlightFences;
+	std::vector<VkFence> imagesInFlight;
+	const int MAX_FRAMES_IN_FLIGHT = 2;
+	size_t currentFrame = 0;
 
 	VulkanSettings vkSettings = VulkanSettings();
 };

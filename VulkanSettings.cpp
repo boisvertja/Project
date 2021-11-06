@@ -7,7 +7,6 @@ VulkanSettings::VulkanSettings()
 
 VulkanSettings::~VulkanSettings()
 {
-	cleanUp();
 }
 
 VkDevice VulkanSettings::getLogicalDevice() const
@@ -197,9 +196,6 @@ void VulkanSettings::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreat
 
 void VulkanSettings::cleanUp()
 {
-	vkDestroySurfaceKHR(instance, surface, nullptr);
-	log("Surface destroyed.");
-
 	vkDestroyDevice(logicalDevice, nullptr);
 	log("Logical device destroyed.");
 
@@ -208,6 +204,9 @@ void VulkanSettings::cleanUp()
 		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 		log("DebugMessenger destroyed.");
 	}
+
+	vkDestroySurfaceKHR(instance, surface, nullptr);
+	log("Surface destroyed.");
 
 	vkDestroyInstance(instance, nullptr);
 	log("Vulkan instance destroyed.");

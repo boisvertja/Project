@@ -8,7 +8,6 @@ Renderer::Renderer()
 Renderer::~Renderer()
 {
 	cleanUp();
-	vkSettings.cleanUp();
 }
 
 void Renderer::init()
@@ -21,7 +20,7 @@ void Renderer::init()
 	createFramebuffers();
 	createCommandPool();
 	createCommandBuffers();
-	createSemaphores();
+	createSyncObjects();
 }
 
 void Renderer::grabHandlesForQueues()
@@ -32,8 +31,12 @@ void Renderer::grabHandlesForQueues()
 
 void Renderer::cleanUp()
 {
-	vkDestroySemaphore(vkSettings.logicalDevice, renderFinishedSemaphore, nullptr);
-	vkDestroySemaphore(vkSettings.logicalDevice, imageAvailableSemaphore, nullptr);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroySemaphore(vkSettings.logicalDevice, renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(vkSettings.logicalDevice, imageAvailableSemaphores[i], nullptr);
+		vkDestroyFence(vkSettings.logicalDevice, inFlightFences[i], nullptr);
+	}
 	log("Semaphores destroyed.");
 
 	vkDestroyCommandPool(vkSettings.logicalDevice, commandPool, nullptr);
@@ -60,6 +63,8 @@ void Renderer::cleanUp()
 
 	vkDestroySwapchainKHR(vkSettings.logicalDevice, swapchain, nullptr);
 	log("Swapchain destroyed.");
+
+	vkSettings.cleanUp();
 }
 
 void Renderer::createSwapChain()
@@ -220,6 +225,9 @@ void Renderer::createRenderPass()
 
 	// Index '0' refers to the actual subpass (the first and only one)
 	dependency.dstSubpass = 0;
+
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
 
 	// Specify the operations to wait on and the stages in which these operations occur
 	// In this case, we want to wait for the swapchain to finish reading the image before we access it, 
@@ -598,36 +606,71 @@ void Renderer::createCommandBuffers()
 }
 
 /*
-* Semaphores are needed to ensure that the command queues 
-(acquiring image from swapchain, execute command buffer with that image, return image to swapchain for presentation) don't occur out of order
+* Semaphores are needed to ensure that the command queues
+* (acquiring image from swapchain, execute command buffer with that image, return image to swapchain for presentation) don't occur out of order
+* No more than two frames are actively being worked on while the third is presenting and none of these frames are accidentally using the same image
 */
-void Renderer::createSemaphores()
+void Renderer::createSyncObjects()
 {
+	// Allow frame that the graphics pipeline can utilize to have its own semaphores to the pipeline
+	// can begin working on creating the next one while the current is still rendering
+	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+	// Track if a frame in flight is currently using a swapchain image
+	// Initially, no frame is currently using the image so initialize it to 'no fence'
+	imagesInFlight.resize(swapchainImages.size(), VK_NULL_HANDLE);
+
 	VkSemaphoreCreateInfo semaphoreInfo{};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	if (vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
+	VkFenceCreateInfo fenceInfo{};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+	// This 'tricks' the CPU into thinking a fence has just finished 
+	// this is necessary as all are created in 'unsignaled' state by default which would cause 'vkWaitForFences' in 'drawFrame' to wait forever
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		throw std::runtime_error("Failed to create semaphores!");
+		if (vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS
+			|| vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS
+			|| vkCreateFence(vkSettings.logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create semaphores for a frame!");
+		}
 	}
 	log("Semaphores created.");
 }
 
 void Renderer::drawFrame()
 {
+	// Wait for the fence to ensure the current frame is finished being presented
+	// Waits for any of the fences to be finished before returning - VK_TRUE indicates to wait for all fences
+	vkWaitForFences(vkSettings.logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+
 	// Acquire an image from the swapchain
 	// UINT64_MAX disables timeout in nanoseconds for an image to become available
 	// Image index refers to the image in swapchain image array. This is used to select the correct command buffer
 	uint32_t imageIndex;
-	vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
+	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+	{
+		vkWaitForFences(vkSettings.logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+	}
+
+	// Mark the image as currently being 'in use' by this frame
+	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	// Specify which semaphores to wait on before execution begins and in which stage of the pipeline to wait
 	// In this case, don't write colors to the image until it's available
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = waitSemaphores;
@@ -638,12 +681,15 @@ void Renderer::drawFrame()
 	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
 
 	// Specify which semaphores to signal once the previous command buffer has finished execution (let the 'renderFinishedSemaphore' know it's good to go)
-	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
+	vkResetFences(vkSettings.logicalDevice, 1, &inFlightFences[currentFrame]);
+
 	// Submit the command buffer to the graphics queue
-	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+	// Utilize the current fence to synchronize the CPU operations with the rendering of frames on the GPU (prevents the GPU from being overwhelmed)
+	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to submit the draw command buffer!");
 	}
@@ -667,6 +713,9 @@ void Renderer::drawFrame()
 
 	// Present an image to the swapchain
 	vkQueuePresentKHR(presentQueue, &presentInfo);
+
+	// Advance to the next frame
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 VulkanSettings Renderer::getVulkanSettings() const
