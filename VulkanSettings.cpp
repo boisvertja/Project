@@ -255,7 +255,6 @@ void VulkanSettings::pickPhysicalDevice()
 	}
 	else
 	{
-		log("~ Select Physical Graphics Device ~");
 		std::unordered_map<int, VkPhysicalDevice> physicalDeviceMap = std::unordered_map<int, VkPhysicalDevice>();
 		int idx = 1;
 		for (std::vector<VkPhysicalDevice>::iterator gpuIter = gpuSelections.begin(); gpuIter != gpuSelections.end(); gpuIter++)
@@ -265,21 +264,42 @@ void VulkanSettings::pickPhysicalDevice()
 			VkPhysicalDeviceProperties deviceProperties;
 			vkGetPhysicalDeviceProperties(*gpuIter, &deviceProperties);
 
-			log("[" << idx << "] " << deviceProperties.deviceName);
+			// Select dedicated graphics card by default
+			if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+				log("Selecting discrete graphics card by default.");
+				physicalDevice = physicalDeviceMap.at(idx);
+				break;
+			}
+
 			idx++;
 		}
 
-		int selection = 0;
-		while (physicalDevice == VK_NULL_HANDLE)
+		if (physicalDevice == VK_NULL_HANDLE)
 		{
-			std::cin >> selection;
-			try
+			idx = 1;
+			log("No discrete graphics card detected. Make selection below.");
+			for (std::vector<VkPhysicalDevice>::iterator gpuIter = gpuSelections.begin(); gpuIter != gpuSelections.end(); gpuIter++)
 			{
-				physicalDevice = physicalDeviceMap.at(selection);
+				VkPhysicalDeviceProperties deviceProperties;
+				vkGetPhysicalDeviceProperties(*gpuIter, &deviceProperties);
+
+				log("[" << idx << "] " << deviceProperties.deviceName);
+
+				idx++;
 			}
-			catch (const std::exception& e)
+
+			int selection = 0;
+			while (physicalDevice == VK_NULL_HANDLE)
 			{
-				log("Invalid graphics device. Specify a different option." << e.what());
+				std::cin >> selection;
+				try
+				{
+					physicalDevice = physicalDeviceMap.at(selection);
+				}
+				catch (const std::exception& e)
+				{
+					log("Invalid graphics device. Specify a different option." << e.what());
+				}
 			}
 		}
 
