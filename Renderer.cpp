@@ -110,14 +110,7 @@ void Renderer::createSwapChain()
 	createInfo.clipped = VK_TRUE;
 
 	// Maintain a pointer to the previous swapchain as a new one needs to be created from scratch if the current one becomes invalid (i.e. window is resized, etc.)
-	if (swapchain == VK_NULL_HANDLE)
-	{
-		createInfo.oldSwapchain = VK_NULL_HANDLE;
-	}
-	else
-	{
-		createInfo.oldSwapchain = swapchain;
-	}
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
 	if (vkCreateSwapchainKHR(vkSettings.logicalDevice, &createInfo, nullptr, &swapchain) != VK_SUCCESS)
 	{
@@ -648,6 +641,8 @@ void Renderer::recreateSwapchain()
 
 	// Wait so we don't touch resources that may currently be in use
 	vkDeviceWaitIdle(vkSettings.logicalDevice);
+
+	cleanUpSwapchain();
 
 	// If the window is resized, we need to recreate the swapchain, imageViews, and all resources that refer to the render space
 	createSwapChain();
