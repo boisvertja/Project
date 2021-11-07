@@ -2,6 +2,10 @@
 
 Renderer::Renderer()
 {
+	// Create callback for resizing the framebuffer
+	glfwSetWindowUserPointer(&Window::getInstance(), this);
+	glfwSetFramebufferSizeCallback(&Window::getInstance(), framebufferResizeCallback);
+
 	init();
 }
 
@@ -31,6 +35,8 @@ void Renderer::grabHandlesForQueues()
 
 void Renderer::cleanUp()
 {
+	cleanUpSwapchain();
+
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		vkDestroySemaphore(vkSettings.logicalDevice, renderFinishedSemaphores[i], nullptr);
@@ -40,29 +46,6 @@ void Renderer::cleanUp()
 	log("Semaphores destroyed.");
 
 	vkDestroyCommandPool(vkSettings.logicalDevice, commandPool, nullptr);
-
-	for (auto framebuffer : swapchainFramebuffers)
-	{
-		vkDestroyFramebuffer(vkSettings.logicalDevice, framebuffer, nullptr);
-	}
-
-	vkDestroyPipeline(vkSettings.logicalDevice, graphicsPipeline, nullptr);
-	log("Graphics pipeline destroyed.");
-
-	vkDestroyPipelineLayout(vkSettings.logicalDevice, pipelineLayout, nullptr);
-	log("Pipeline layout destroyed.");
-
-	vkDestroyRenderPass(vkSettings.logicalDevice, renderPass, nullptr);
-	log("RenderPass destroyed.");
-
-	for (auto imageView : swapchainImageViews)
-	{
-		vkDestroyImageView(vkSettings.logicalDevice, imageView, nullptr);
-	}
-	log("ImageViews destroyed.");
-
-	vkDestroySwapchainKHR(vkSettings.logicalDevice, swapchain, nullptr);
-	log("Swapchain destroyed.");
 
 	vkSettings.cleanUp();
 }
@@ -127,7 +110,14 @@ void Renderer::createSwapChain()
 	createInfo.clipped = VK_TRUE;
 
 	// Maintain a pointer to the previous swapchain as a new one needs to be created from scratch if the current one becomes invalid (i.e. window is resized, etc.)
-	createInfo.oldSwapchain = VK_NULL_HANDLE;
+	if (swapchain == VK_NULL_HANDLE)
+	{
+		createInfo.oldSwapchain = VK_NULL_HANDLE;
+	}
+	else
+	{
+		createInfo.oldSwapchain = swapchain;
+	}
 
 	if (vkCreateSwapchainKHR(vkSettings.logicalDevice, &createInfo, nullptr, &swapchain) != VK_SUCCESS)
 	{
@@ -644,6 +634,69 @@ void Renderer::createSyncObjects()
 	log("Semaphores created.");
 }
 
+void Renderer::recreateSwapchain()
+{
+	// If the window is minimized (resized to zero), wait for the framebuffer to be in the foreground again
+	int width = 0;
+	int height = 0;
+	glfwGetFramebufferSize(&Window::getInstance(), &width, &height);
+	while (width == 0 || height == 0)
+	{
+		glfwGetFramebufferSize(&Window::getInstance(), &width, &height);
+		glfwWaitEvents();
+	}
+
+	// Wait so we don't touch resources that may currently be in use
+	vkDeviceWaitIdle(vkSettings.logicalDevice);
+
+	// If the window is resized, we need to recreate the swapchain, imageViews, and all resources that refer to the render space
+	createSwapChain();
+	createImageViews();
+	createRenderPass();
+	createGraphicsPipeline();
+	createFramebuffers();
+	createCommandBuffers();
+}
+
+/*
+* Clean up all resources associated to objects used in the swapchain
+*/
+void Renderer::cleanUpSwapchain()
+{
+	for (auto framebuffer : swapchainFramebuffers)
+	{
+		vkDestroyFramebuffer(vkSettings.logicalDevice, framebuffer, nullptr);
+	}
+	log("Framebuffers destroyed.");
+
+	// Free up the existing command buffers rather than re-allocating them again in the command pool (wasteful)
+	vkFreeCommandBuffers(vkSettings.logicalDevice, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+	vkDestroyPipeline(vkSettings.logicalDevice, graphicsPipeline, nullptr);
+	log("Graphics pipeline destroyed.");
+
+	vkDestroyPipelineLayout(vkSettings.logicalDevice, pipelineLayout, nullptr);
+	log("Pipeline layout destroyed.");
+
+	vkDestroyRenderPass(vkSettings.logicalDevice, renderPass, nullptr);
+	log("RenderPass destroyed.");
+
+	for (auto imageView : swapchainImageViews)
+	{
+		vkDestroyImageView(vkSettings.logicalDevice, imageView, nullptr);
+	}
+	log("Image views destroyed.");
+
+	vkDestroySwapchainKHR(vkSettings.logicalDevice, swapchain, nullptr);
+	log("Swapchain destroyed.");
+}
+
+void Renderer::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
+	app->framebufferResized = true;
+}
+
 void Renderer::drawFrame()
 {
 	// Wait for the fence to ensure the current frame is finished being presented
@@ -654,7 +707,18 @@ void Renderer::drawFrame()
 	// UINT64_MAX disables timeout in nanoseconds for an image to become available
 	// Image index refers to the image in swapchain image array. This is used to select the correct command buffer
 	uint32_t imageIndex;
-	vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	// Detect a window resize, recreate the swapchain to match the new resolution, and try presenting on the next 'drawFrame'
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		recreateSwapchain();
+		return;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	{
+		throw std::runtime_error("Failed to acquire swapchain image!");
+	}
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
@@ -712,7 +776,16 @@ void Renderer::drawFrame()
 	presentInfo.pResults = nullptr;
 
 	// Present an image to the swapchain
-	vkQueuePresentKHR(presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(presentQueue, &presentInfo);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+	{
+		framebufferResized = false;
+		recreateSwapchain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to present swapchain image!");
+	}
 
 	// Advance to the next frame
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;

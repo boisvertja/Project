@@ -25,6 +25,9 @@ private:
 	void createCommandPool();
 	void createCommandBuffers();
 	void createSyncObjects();
+	void recreateSwapchain();
+	void cleanUpSwapchain();
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 private:
 	VkQueue graphicsQueue;
@@ -50,6 +53,7 @@ private:
 	std::vector<VkFence> inFlightFences;
 	std::vector<VkFence> imagesInFlight;
 	const int MAX_FRAMES_IN_FLIGHT = 2;
+	bool framebufferResized;
 	size_t currentFrame = 0;
 
 	VulkanSettings vkSettings = VulkanSettings();

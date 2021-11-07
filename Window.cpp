@@ -22,7 +22,7 @@ void Window::init()
 
 	// Don't create an OpenGL context as we're working with Vulkan
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Project", nullptr, nullptr);
 }
