@@ -23,6 +23,7 @@ void Renderer::init()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
+	createVertexBuffer();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -36,6 +37,9 @@ void Renderer::grabHandlesForQueues()
 void Renderer::cleanUp()
 {
 	cleanUpSwapchain();
+
+	vkDestroyBuffer(vkSettings.logicalDevice, vertexBuffer, nullptr);
+	vkFreeMemory(vkSettings.logicalDevice, vertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -265,13 +269,15 @@ void Renderer::createGraphicsPipeline()
 	// Describe the format of the vertex data that will be passed to the vertex shader
 	// Bindings: Spacing between data and whether the data is per-vertex or per-instance
 	// Attribute descriptions: Type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+	auto bindingDescription = Vertex::getBindingDescription();
+	auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional - point to array of structs that define details for loading vertices
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional - point to array of structs that define details for loading vertices
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // Optional - point to array of structs that define details for loading vertices
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data(); // Optional - point to array of structs that define details for loading vertices
 
 	// This state describes the geometry to be drawn with the vertices and whether 'primitive restart' should be enabled
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -575,8 +581,15 @@ void Renderer::createCommandBuffers()
 		// Bind the graphics pipeline to the command buffer
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+		// Bind the vertex buffer during rendering operations
+		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+
+		// First two parameters (besides command buffer) specifies the offset and number of bindings to specify vertex buffers for
+		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
 		// Parameters: the command buffer to bind to, vertex count, instance count (always 1 except for 'instance rendering'), offset for the first vertex (lowest value of the gl_VertexIndex), first instance (offset of instance rendering - gl_InstanceIndex)
-		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -690,6 +703,68 @@ void Renderer::framebufferResizeCallback(GLFWwindow* window, int width, int heig
 {
 	auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 	app->framebufferResized = true;
+}
+
+void Renderer::createVertexBuffer()
+{
+	VkBufferCreateInfo bufferInfo{};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(vkSettings.logicalDevice, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create vertex buffer!");
+	}
+	log("Created vertex buffer.");
+
+	// Assign memory to the buffer
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(vkSettings.logicalDevice, vertexBuffer, &memRequirements);
+
+	// Allocate the memory
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	if (vkAllocateMemory(vkSettings.logicalDevice, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate vertex buffer memory!");
+	}
+	log("Allocated vertex buffer memory.");
+
+	// Associate the memory to the vertex buffer handle
+	vkBindBufferMemory(vkSettings.logicalDevice, vertexBuffer, vertexBufferMemory, 0);
+
+	// Copy the vertex data to the buffer. This requires mapping the buffer memory into CPU accessible memory
+	void* mappedMemoryData;
+	vkMapMemory(vkSettings.logicalDevice, vertexBufferMemory, 0, bufferInfo.size, 0, &mappedMemoryData);
+
+	memcpy(mappedMemoryData, vertices.data(), (size_t)bufferInfo.size);
+	vkUnmapMemory(vkSettings.logicalDevice, vertexBufferMemory);
+}
+
+uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+	// Query information about the available types of memory
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(vkSettings.physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+	{
+		// Locate a memory type that is suitable for the vertex buffer as well as writing vertex data to the memory
+		// Memory type array specifies heap and properties of each type of memory i.e. being able to write to it from the CPU
+		// Check if the result of the bitwise AND is not just non-zero, but equal to the desired property's bit field
+		// (If there is a memory type suitable for the buffer that also has all the properties we need)
+		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			return i; 
+		}
+	}
+
+	throw std::runtime_error("Unable to find memory type suitable for the vertex buffer!");
 }
 
 void Renderer::drawFrame()
