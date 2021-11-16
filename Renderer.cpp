@@ -24,6 +24,7 @@ void Renderer::init()
 	createFramebuffers();
 	createCommandPool();
 	createVertexBuffer();
+	createIndexBuffer();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -37,6 +38,9 @@ void Renderer::grabHandlesForQueues()
 void Renderer::cleanUp()
 {
 	cleanUpSwapchain();
+
+	vkDestroyBuffer(vkSettings.logicalDevice, indexBuffer, nullptr);
+	vkFreeMemory(vkSettings.logicalDevice, indexBufferMemory, nullptr);
 
 	vkDestroyBuffer(vkSettings.logicalDevice, vertexBuffer, nullptr);
 	vkFreeMemory(vkSettings.logicalDevice, vertexBufferMemory, nullptr);
@@ -588,8 +592,10 @@ void Renderer::createCommandBuffers()
 		// First two parameters (besides command buffer) specifies the offset and number of bindings to specify vertex buffers for
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
 		// Parameters: the command buffer to bind to, vertex count, instance count (always 1 except for 'instance rendering'), offset for the first vertex (lowest value of the gl_VertexIndex), first instance (offset of instance rendering - gl_InstanceIndex)
-		vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -825,6 +831,28 @@ void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize s
 	vkQueueWaitIdle(graphicsQueue);
 
 	vkFreeCommandBuffers(vkSettings.logicalDevice, commandPool, 1, &commandBuffer);
+}
+
+void Renderer::createIndexBuffer()
+{
+	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* stagingBufferData;
+	vkMapMemory(vkSettings.logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &stagingBufferData);
+	memcpy(stagingBufferData, indices.data(), (size_t)bufferSize);
+	vkUnmapMemory(vkSettings.logicalDevice, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+	vkDestroyBuffer(vkSettings.logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(vkSettings.logicalDevice, stagingBufferMemory, nullptr);
 }
 
 void Renderer::drawFrame()
