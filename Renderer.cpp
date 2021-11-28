@@ -789,7 +789,6 @@ void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
 	{
 		throw std::runtime_error("Failed to create buffer!");
 	}
-	log("Created buffer.");
 
 	// Assign memory to the buffer
 	VkMemoryRequirements memRequirements;
@@ -805,7 +804,6 @@ void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemor
 	{
 		throw std::runtime_error("Failed to allocate buffer memory!");
 	}
-	log("Allocated buffer memory.");
 
 	// Associate the memory to the vertex buffer handle
 	vkBindBufferMemory(vkSettings.logicalDevice, buffer, bufferMemory, 0);
@@ -1119,6 +1117,23 @@ void Renderer::drawFrame()
 
 	// Advance to the next frame
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer::calculateFPS()
+{
+	static std::chrono::time_point<std::chrono::steady_clock> oldTime = std::chrono::high_resolution_clock::now();
+	static int fps;
+	
+	fps++;
+
+	if (std::chrono::duration_cast<std::chrono::seconds>(
+		std::chrono::high_resolution_clock::now() - oldTime) >= std::chrono::seconds{ 1 }) {
+		oldTime = std::chrono::high_resolution_clock::now();
+		std::stringstream ss;
+		ss << Window::getWindowTitle() << " FPS: " << fps;
+		glfwSetWindowTitle(&Window::getInstance(), ss.str().c_str());
+		fps = 0;
+	}
 }
 
 VulkanSettings Renderer::getVulkanSettings() const

@@ -14,6 +14,7 @@ public:
 	Renderer();
 	~Renderer();
 	void drawFrame();
+	void calculateFPS();
 	VulkanSettings getVulkanSettings() const;
 
 private:

@@ -11,6 +11,7 @@ int main()
 		{
 			glfwPollEvents();
 			renderer.drawFrame();
+			renderer.calculateFPS();
 		}
 
 		vkDeviceWaitIdle(renderer.getVulkanSettings().getLogicalDevice());

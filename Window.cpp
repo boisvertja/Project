@@ -1,6 +1,7 @@
 #include "Window.h"
 
 GLFWwindow* Window::window = nullptr;
+const char* Window::windowTitle = "Project";
 
 GLFWwindow& Window::getInstance()
 {
@@ -24,7 +25,7 @@ void Window::init()
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Project", nullptr, nullptr);
+	window = glfwCreateWindow(WIDTH, HEIGHT, windowTitle, nullptr, nullptr);
 }
 
 void Window::cleanUp()
@@ -32,4 +33,9 @@ void Window::cleanUp()
 	glfwDestroyWindow(&Window::getInstance());
 	glfwTerminate();
 	log("GLFW resources cleaned up.");
+}
+
+const char* Window::getWindowTitle()
+{
+	return windowTitle;
 }
