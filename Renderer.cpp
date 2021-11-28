@@ -20,11 +20,15 @@ void Renderer::init()
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	createDescriptorSetLayout();
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPool();
 	createVertexBuffer();
 	createIndexBuffer();
+	createUniformBuffers();
+	createDescriptorPool();
+	createDescriptorSets();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -38,6 +42,8 @@ void Renderer::grabHandlesForQueues()
 void Renderer::cleanUp()
 {
 	cleanUpSwapchain();
+
+	vkDestroyDescriptorSetLayout(vkSettings.logicalDevice, descriptorSetLayout, nullptr);
 
 	vkDestroyBuffer(vkSettings.logicalDevice, indexBuffer, nullptr);
 	vkFreeMemory(vkSettings.logicalDevice, indexBufferMemory, nullptr);
@@ -321,8 +327,8 @@ void Renderer::createGraphicsPipeline()
 	rasterizer.rasterizerDiscardEnable = VK_FALSE; // If set to 'VK_TRUE', then geometry never passes through the rasterizer stage.
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; // Determines how fragments are generated for geometry (FILL, LINE (wireframe), POINT) - any other than 'FILL' requires enabling GPU feature
 	rasterizer.lineWidth = 1.0f; // In terms of number of fragments
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
 	rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -373,8 +379,8 @@ void Renderer::createGraphicsPipeline()
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0; // Optional
-	pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+	pipelineLayoutInfo.setLayoutCount = 1; // Optional
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -594,6 +600,10 @@ void Renderer::createCommandBuffers()
 
 		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+		// Bind a descriptor set to the current command buffer and the graphics pipeline (not compute pipeline)
+		// 'PipelineLayout' is the layotut the descriptors are based on
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+
 		// Parameters: the command buffer to bind to, vertex count, instance count (always 1 except for 'instance rendering'), offset for the first vertex (lowest value of the gl_VertexIndex), first instance (offset of instance rendering - gl_InstanceIndex)
 		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -669,6 +679,9 @@ void Renderer::recreateSwapchain()
 	createRenderPass();
 	createGraphicsPipeline();
 	createFramebuffers();
+	createUniformBuffers();
+	createDescriptorPool();
+	createDescriptorSets();
 	createCommandBuffers();
 }
 
@@ -703,6 +716,14 @@ void Renderer::cleanUpSwapchain()
 
 	vkDestroySwapchainKHR(vkSettings.logicalDevice, swapchain, nullptr);
 	log("Swapchain destroyed.");
+
+	for (size_t i = 0; i < swapchainImages.size(); i++)
+	{
+		vkDestroyBuffer(vkSettings.logicalDevice, uniformBuffers[i], nullptr);
+		vkFreeMemory(vkSettings.logicalDevice, uniformBuffersMemory[i], nullptr);
+	}
+
+	vkDestroyDescriptorPool(vkSettings.logicalDevice, descriptorPool, nullptr);
 }
 
 void Renderer::framebufferResizeCallback(GLFWwindow* window, int width, int height)
@@ -855,6 +876,155 @@ void Renderer::createIndexBuffer()
 	vkFreeMemory(vkSettings.logicalDevice, stagingBufferMemory, nullptr);
 }
 
+void Renderer::createDescriptorSetLayout()
+{
+	VkDescriptorSetLayoutBinding uboLayoutBinding{};
+	uboLayoutBinding.binding = 0;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+	// Specify in which shader stage the descriptor will be referenced
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo{};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &uboLayoutBinding;
+
+	if (vkCreateDescriptorSetLayout(vkSettings.logicalDevice, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create descriptor set layout!");
+	}
+	log("Descriptor set layout created.");
+}
+
+void Renderer::createUniformBuffers()
+{
+	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+	uniformBuffers.resize(swapchainImages.size());
+	uniformBuffersMemory.resize(swapchainImages.size());
+
+	for (size_t i = 0; i < swapchainImages.size(); i++)
+	{
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+	}
+}
+
+/*
+* Ensure the geometry rotates 90 degrees every second regardless of frame rate
+*/
+void Renderer::updateUniformBuffer(uint32_t currentImage)
+{
+	static auto startTime = std::chrono::high_resolution_clock::now();
+
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+	// Define the transformation to perform
+	// glm::rotate takes an existing transformation (glm::mat4(..)) - identity matrix
+		// rotation angle
+		// rotation axis
+	int numberOfSecondsPerRotation = 3;
+	UniformBufferObject ubo{};
+	ubo.model = glm::rotate(glm::mat4(1.0f), numberOfSecondsPerRotation * time * glm::radians(90.0f), glm::vec3(0.5f, 0.0f, 1.0f));
+
+	// Looking at geometry from above at a 45-degree angle
+	// glm::lookAt takes the eye position, center position, and up axis as parameters
+	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	// Use a perspective projection with a 45-degree vertical field of view
+	// Also takes the aspect ratio and near / far planes
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
+
+	// GLM was originally designed for OpenGL (inverted Y-axis) - multiply projection scaling by -1 to correct for Vulkan otherwise the image will appear upside-down
+	ubo.proj[1][1] *= -1;
+
+	// Copy the data in the UniformBufferObject to the current uniform buffer
+	void* data;
+	vkMapMemory(vkSettings.logicalDevice, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+	memcpy(data, &ubo, sizeof(ubo));
+	vkUnmapMemory(vkSettings.logicalDevice, uniformBuffersMemory[currentImage]);
+}
+
+void Renderer::createDescriptorPool()
+{
+	// Describe which descriptor types the descriptor sets will contain
+	VkDescriptorPoolSize poolSize{};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = static_cast<uint32_t>(swapchainImages.size());
+
+	VkDescriptorPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+
+	// Specify the maximum number of descriptor sets that may be allocated
+	poolInfo.maxSets = static_cast<uint32_t>(swapchainImages.size());
+	
+	poolInfo.flags = 0; // Optional
+
+	if (vkCreateDescriptorPool(vkSettings.logicalDevice, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create descriptor pool!");
+	}
+	log("Descriptor pool created.");
+}
+
+void Renderer::createDescriptorSets()
+{
+	// Create one descriptor set for each swapchain image, all with the same layout
+	std::vector<VkDescriptorSetLayout> layouts(swapchainImages.size(), descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapchainImages.size());
+	allocInfo.pSetLayouts = layouts.data();
+
+	// Allocate descriptor sets each with one uniform buffer descriptor
+	descriptorSets.resize(swapchainImages.size());
+	if (vkAllocateDescriptorSets(vkSettings.logicalDevice, &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate descriptor sets!");
+	}
+	log("Descriptor sets allocated.");
+
+	// Populate each uniform buffer descriptor with a uniform buffer
+	for (size_t i = 0; i < swapchainImages.size(); i++)
+	{
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = uniformBuffers[i];
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(UniformBufferObject);
+
+		// Update the configuration of the descriptor sets
+		VkWriteDescriptorSet descriptorWrite{};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+		// Descriptor set to update
+		descriptorWrite.dstSet = descriptorSets[i];
+
+		// Binding of the descriptor set
+		descriptorWrite.dstBinding = 0;
+
+		// Descriptors can be arrays so specify the first index in the array that is to be updated
+		descriptorWrite.dstArrayElement = 0;
+
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+		// Specify the number of array elements to be updated (possible to update multiple at once)
+		descriptorWrite.descriptorCount = 1;
+
+		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pImageInfo = nullptr; // Optional
+		descriptorWrite.pTexelBufferView = nullptr; // Optional
+
+		vkUpdateDescriptorSets(vkSettings.logicalDevice, 1, &descriptorWrite, 0, nullptr);
+	}
+}
+
 void Renderer::drawFrame()
 {
 	// Wait for the fence to ensure the current frame is finished being presented
@@ -877,6 +1047,8 @@ void Renderer::drawFrame()
 	{
 		throw std::runtime_error("Failed to acquire swapchain image!");
 	}
+
+	updateUniformBuffer(imageIndex);
 
 	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)

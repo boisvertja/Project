@@ -1,5 +1,10 @@
 #pragma once
+#define GLM_FORCE_RADIANS // Necessary to ensure that matrix transformation methods use radians as arguments
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES // Necessary to ensure all data types in shaders (vec2, mat4, etc.) meet the alignment requirement (multiples of 16 bytes in size)
 #include <array>
+#include <chrono>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include "Shader.h"
 #include "VulkanSettings.h"
 
@@ -34,6 +39,11 @@ private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void createIndexBuffer();
+	void createDescriptorSetLayout();
+	void createUniformBuffers();
+	void updateUniformBuffer(uint32_t currentImage);
+	void createDescriptorPool();
+	void createDescriptorSets();
 
 private:
 	VkQueue graphicsQueue;
@@ -49,6 +59,7 @@ private:
 	std::vector<VkFramebuffer> swapchainFramebuffers;
 
 	VkRenderPass renderPass;
+	VkDescriptorSetLayout descriptorSetLayout;
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkCommandPool commandPool;
@@ -112,6 +123,13 @@ private:
 		}
 	};
 
+	struct UniformBufferObject
+	{
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
+
 	const std::vector<Vertex> vertices =
 	{
 		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
@@ -129,4 +147,10 @@ private:
 	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexBufferMemory;
+
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
+
+	VkDescriptorPool descriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets;
 };
