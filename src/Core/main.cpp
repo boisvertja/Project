@@ -1,11 +1,11 @@
-#include "Renderer.h"
+#include "../Renderer/Renderer.h"
 
 int main()
 {
 	try
 	{
-		GLFWwindow& window = Window::getInstance();
-		Renderer renderer = Renderer();
+		GLFWwindow& window = VulkanProject::Window::getInstance();
+		VulkanProject::Renderer renderer = VulkanProject::Renderer();
 
 		while (!glfwWindowShouldClose(&window))
 		{
@@ -18,7 +18,7 @@ int main()
 
 		log("\nCleaning resources...");
 		log("=========================");
-		Window::cleanUp();
+		VulkanProject::Window::cleanUp();
 	}
 	catch (const std::exception& e)
 	{
