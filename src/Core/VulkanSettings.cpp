@@ -2,6 +2,8 @@
 
 namespace VulkanProject
 {
+	VulkanSettings* VulkanSettings::vkSettings = nullptr;
+
 	VulkanSettings::VulkanSettings()
 	{
 		init();
@@ -9,11 +11,26 @@ namespace VulkanProject
 
 	VulkanSettings::~VulkanSettings()
 	{
+		delete vkSettings;
+	}
+
+	VulkanSettings* VulkanSettings::getInstance()
+	{
+		if (vkSettings == nullptr)
+		{
+			vkSettings = new VulkanSettings();
+		}
+		return vkSettings;
 	}
 
 	VkDevice VulkanSettings::getLogicalDevice() const
 	{
 		return logicalDevice;
+	}
+
+	VkPhysicalDevice VulkanSettings::getPhysicalDevice() const
+	{
+		return physicalDevice;
 	}
 
 	void VulkanSettings::init()
@@ -98,7 +115,7 @@ namespace VulkanProject
 		{
 			throw std::runtime_error("Failed to create instance!");
 		}
-		log("Vulkan instance created.");
+		LOG("Vulkan instance created.");
 
 		// Log the Vulkan API version used
 		uint32_t vkInstanceVersion = appInfo.apiVersion;
@@ -108,7 +125,7 @@ namespace VulkanProject
 		uint32_t minor = VK_VERSION_MINOR(vkInstanceVersion);
 		uint32_t patch = VK_VERSION_PATCH(vkInstanceVersion);
 
-		log("Vulkan API Version: " << major << "." << minor << "." << patch);
+		LOG("Vulkan API Version: " << major << "." << minor << "." << patch);
 	}
 
 	bool VulkanSettings::checkValidationLayerSupport()
@@ -175,7 +192,7 @@ namespace VulkanProject
 		{
 			throw std::runtime_error("Failed to setup debug messenger for configuring validation layer logging!");
 		}
-		log("DebugMessenger created.");
+		LOG("DebugMessenger created.");
 	}
 
 	void VulkanSettings::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
@@ -199,19 +216,19 @@ namespace VulkanProject
 	void VulkanSettings::cleanUp()
 	{
 		vkDestroyDevice(logicalDevice, nullptr);
-		log("Logical device destroyed.");
+		LOG("Logical device destroyed.");
 
 		if (ENABLE_VALIDATION_LAYERS)
 		{
 			DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-			log("DebugMessenger destroyed.");
+			LOG("DebugMessenger destroyed.");
 		}
 
 		vkDestroySurfaceKHR(instance, surface, nullptr);
-		log("Surface destroyed.");
+		LOG("Surface destroyed.");
 
 		vkDestroyInstance(instance, nullptr);
-		log("Vulkan instance destroyed.");
+		LOG("Vulkan instance destroyed.");
 	}
 
 	VKAPI_ATTR VkBool32 VKAPI_CALL VulkanSettings::debugCallback(
@@ -220,7 +237,7 @@ namespace VulkanProject
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData)
 	{
-		log("Validation Layer: " << pCallbackData->pMessage);
+		LOG("Validation Layer: " << pCallbackData->pMessage);
 
 		return VK_FALSE;
 	}
@@ -268,7 +285,7 @@ namespace VulkanProject
 
 				// Select dedicated graphics card by default
 				if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-					log("Selecting discrete graphics card by default.");
+					LOG("Selecting discrete graphics card by default.");
 					physicalDevice = physicalDeviceMap.at(idx);
 					break;
 				}
@@ -279,13 +296,13 @@ namespace VulkanProject
 			if (physicalDevice == VK_NULL_HANDLE)
 			{
 				idx = 1;
-				log("No discrete graphics card detected. Make selection below.");
+				LOG("No discrete graphics card detected. Make selection below.");
 				for (std::vector<VkPhysicalDevice>::iterator gpuIter = gpuSelections.begin(); gpuIter != gpuSelections.end(); gpuIter++)
 				{
 					VkPhysicalDeviceProperties deviceProperties;
 					vkGetPhysicalDeviceProperties(*gpuIter, &deviceProperties);
 
-					log("[" << idx << "] " << deviceProperties.deviceName);
+					LOG("[" << idx << "] " << deviceProperties.deviceName);
 
 					idx++;
 				}
@@ -300,7 +317,7 @@ namespace VulkanProject
 					}
 					catch (const std::exception& e)
 					{
-						log("Invalid graphics device. Specify a different option." << e.what());
+						LOG("Invalid graphics device. Specify a different option." << e.what());
 					}
 				}
 			}
@@ -308,7 +325,7 @@ namespace VulkanProject
 			VkPhysicalDeviceProperties deviceProperties;
 			vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 
-			log("Graphics Device Selected: " << deviceProperties.deviceName);
+			LOG("Graphics Device Selected: " << deviceProperties.deviceName);
 		}
 	}
 
@@ -415,7 +432,7 @@ namespace VulkanProject
 		{
 			throw std::runtime_error("Failed to create logical device!");
 		}
-		log("Logical device created.");
+		LOG("Logical device created.");
 	}
 
 	bool VulkanSettings::checkDeviceExtensionSupport(VkPhysicalDevice device)
@@ -487,6 +504,6 @@ namespace VulkanProject
 		{
 			throw std::runtime_error("Failed to create window surface!");
 		}
-		log("Window surface created.");
+		LOG("Window surface created.");
 	}
 }

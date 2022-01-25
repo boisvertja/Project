@@ -26,8 +26,8 @@ namespace VulkanProject
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
-		createVertexBuffer();
-		createIndexBuffer();
+		createVertexBuffers();
+		createIndexBuffers();
 		createUniformBuffers();
 		createDescriptorPool();
 		createDescriptorSets();
@@ -37,38 +37,38 @@ namespace VulkanProject
 
 	void Renderer::grabHandlesForQueues()
 	{
-		vkGetDeviceQueue(vkSettings.logicalDevice, vkSettings.queueIndices.graphicsFamily.value(), 0, &graphicsQueue);
-		vkGetDeviceQueue(vkSettings.logicalDevice, vkSettings.queueIndices.presentFamily.value(), 0, &presentQueue);
+		vkGetDeviceQueue(vkSettings->logicalDevice, vkSettings->queueIndices.graphicsFamily.value(), 0, &graphicsQueue);
+		vkGetDeviceQueue(vkSettings->logicalDevice, vkSettings->queueIndices.presentFamily.value(), 0, &presentQueue);
 	}
 
 	void Renderer::cleanUp()
 	{
 		cleanUpSwapchain();
 
-		vkDestroyDescriptorSetLayout(vkSettings.logicalDevice, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(vkSettings->logicalDevice, descriptorSetLayout, nullptr);
 
-		vkDestroyBuffer(vkSettings.logicalDevice, indexBuffer, nullptr);
-		vkFreeMemory(vkSettings.logicalDevice, indexBufferMemory, nullptr);
+		vkDestroyBuffer(vkSettings->logicalDevice, indexBuffer.getBuffer(), nullptr);
+		vkFreeMemory(vkSettings->logicalDevice, indexBuffer.getBufferMemory(), nullptr);
 
-		vkDestroyBuffer(vkSettings.logicalDevice, vertexBuffer, nullptr);
-		vkFreeMemory(vkSettings.logicalDevice, vertexBufferMemory, nullptr);
+		vkDestroyBuffer(vkSettings->logicalDevice, vertexBuffer.getBuffer(), nullptr);
+		vkFreeMemory(vkSettings->logicalDevice, vertexBuffer.getBufferMemory(), nullptr);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(vkSettings.logicalDevice, renderFinishedSemaphores[i], nullptr);
-			vkDestroySemaphore(vkSettings.logicalDevice, imageAvailableSemaphores[i], nullptr);
-			vkDestroyFence(vkSettings.logicalDevice, inFlightFences[i], nullptr);
+			vkDestroySemaphore(vkSettings->logicalDevice, renderFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(vkSettings->logicalDevice, imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(vkSettings->logicalDevice, inFlightFences[i], nullptr);
 		}
-		log("Semaphores destroyed.");
+		LOG("Semaphores destroyed.");
 
-		vkDestroyCommandPool(vkSettings.logicalDevice, commandPool, nullptr);
+		vkDestroyCommandPool(vkSettings->logicalDevice, commandPool, nullptr);
 
-		vkSettings.cleanUp();
+		vkSettings->cleanUp();
 	}
 
 	void Renderer::createSwapChain()
 	{
-		VulkanSettings::SwapChainSupportDetails swapChainSupport = vkSettings.querySwapChainSupport(vkSettings.physicalDevice);
+		VulkanSettings::SwapChainSupportDetails swapChainSupport = vkSettings->querySwapChainSupport(vkSettings->physicalDevice);
 
 		VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 		VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -86,7 +86,7 @@ namespace VulkanProject
 
 		VkSwapchainCreateInfoKHR createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = vkSettings.surface;
+		createInfo.surface = vkSettings->surface;
 		createInfo.minImageCount = imageCount;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -95,7 +95,7 @@ namespace VulkanProject
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // Operation types images in the swapchain will be used for
 
 		// Specify how to handle the swapchain images that will be used across multiple queue families
-		VulkanSettings::QueueFamilyIndices indices = vkSettings.findQueueFamilies(vkSettings.physicalDevice);
+		VulkanSettings::QueueFamilyIndices indices = vkSettings->findQueueFamilies(vkSettings->physicalDevice);
 		uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
 		if (indices.graphicsFamily != indices.presentFamily)
@@ -128,16 +128,16 @@ namespace VulkanProject
 		// Maintain a pointer to the previous swapchain as a new one needs to be created from scratch if the current one becomes invalid (i.e. window is resized, etc.)
 		createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-		if (vkCreateSwapchainKHR(vkSettings.logicalDevice, &createInfo, nullptr, &swapchain) != VK_SUCCESS)
+		if (vkCreateSwapchainKHR(vkSettings->logicalDevice, &createInfo, nullptr, &swapchain) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create swapchain!");
 		}
-		log("Swapchain created.");
+		LOG("Swapchain created.");
 
 		// Query for and resize handle to swapchain's images according to the maximum number of images capable
-		vkGetSwapchainImagesKHR(vkSettings.logicalDevice, swapchain, &imageCount, nullptr);
+		vkGetSwapchainImagesKHR(vkSettings->logicalDevice, swapchain, &imageCount, nullptr);
 		swapchainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(vkSettings.logicalDevice, swapchain, &imageCount, swapchainImages.data());
+		vkGetSwapchainImagesKHR(vkSettings->logicalDevice, swapchain, &imageCount, swapchainImages.data());
 
 		swapchainImageFormat = surfaceFormat.format;
 		swapchainExtent = extent;
@@ -175,12 +175,12 @@ namespace VulkanProject
 			// If developing a stereographic 3D application, swapchain images would have multiple layers
 			createInfo.subresourceRange.layerCount = 1;
 
-			if (vkCreateImageView(vkSettings.logicalDevice, &createInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS)
+			if (vkCreateImageView(vkSettings->logicalDevice, &createInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to create image views!");
 			}
 		}
-		log("ImageViews created.");
+		LOG("ImageViews created.");
 	}
 
 	/*
@@ -243,17 +243,17 @@ namespace VulkanProject
 		renderPassInfo.dependencyCount = 1;
 		renderPassInfo.pDependencies = &dependency;
 
-		if (vkCreateRenderPass(vkSettings.logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		if (vkCreateRenderPass(vkSettings->logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create render pass!");
 		}
-		log("RenderPass created.");
+		LOG("RenderPass created.");
 	}
 
 	void Renderer::createGraphicsPipeline()
 	{
-		Shader vertexShader = Shader(Shader::SHADER_TYPE::VERTEX, vkSettings.logicalDevice);
-		Shader fragmentShader = Shader(Shader::SHADER_TYPE::FRAGMENT, vkSettings.logicalDevice);
+		Shader vertexShader = Shader(Shader::SHADER_TYPE::VERTEX, vkSettings->logicalDevice);
+		Shader fragmentShader = Shader(Shader::SHADER_TYPE::FRAGMENT, vkSettings->logicalDevice);
 
 		// Shader bytecode is converted to machine code upon creation of the graphics pipeline
 		// This allows us to create the modules as local variables rather than class as we'll destroy them afterwards
@@ -281,8 +281,8 @@ namespace VulkanProject
 		// Describe the format of the vertex data that will be passed to the vertex shader
 		// Bindings: Spacing between data and whether the data is per-vertex or per-instance
 		// Attribute descriptions: Type of the attributes passed to the vertex shader, which binding to load them from and at which offset
-		auto bindingDescription = Vertex::getBindingDescription();
-		auto attributeDescriptions = Vertex::getAttributeDescriptions();
+		auto bindingDescription = VertexBuffer::Vertex::getBindingDescription();
+		auto attributeDescriptions = VertexBuffer::Vertex::getAttributeDescriptions();
 
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -386,11 +386,11 @@ namespace VulkanProject
 		pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-		if (vkCreatePipelineLayout(vkSettings.logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(vkSettings->logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create pipeline layout!");
 		}
-		log("Pipeline layout created.");
+		LOG("Pipeline layout created.");
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -414,14 +414,14 @@ namespace VulkanProject
 		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional - used if creating a derived pipeline with similar attributes of this one
 		pipelineInfo.basePipelineIndex = -1;
 
-		if (vkCreateGraphicsPipelines(vkSettings.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+		if (vkCreateGraphicsPipelines(vkSettings->logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create graphics pipeline!");
 		}
-		log("Graphics pipeline created.");
+		LOG("Graphics pipeline created.");
 
-		vkDestroyShaderModule(vkSettings.logicalDevice, fragShaderModule, nullptr);
-		vkDestroyShaderModule(vkSettings.logicalDevice, vertShaderModule, nullptr);
+		vkDestroyShaderModule(vkSettings->logicalDevice, fragShaderModule, nullptr);
+		vkDestroyShaderModule(vkSettings->logicalDevice, vertShaderModule, nullptr);
 	}
 
 	/*
@@ -516,18 +516,18 @@ namespace VulkanProject
 			framebufferInfo.height = swapchainExtent.height;
 			framebufferInfo.layers = 1;
 
-			if (vkCreateFramebuffer(vkSettings.logicalDevice, &framebufferInfo, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(vkSettings->logicalDevice, &framebufferInfo, nullptr, &swapchainFramebuffers[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to create framebuffer!");
 			}
 		}
-		log("Framebuffers created.");
+		LOG("Framebuffers created.");
 	}
 
 	void Renderer::createCommandPool()
 	{
 		// Command pools manage the memory that's used to store the command buffers
-		VulkanSettings::QueueFamilyIndices queueFamilyIndices = vkSettings.findQueueFamilies(vkSettings.physicalDevice);
+		VulkanSettings::QueueFamilyIndices queueFamilyIndices = vkSettings->findQueueFamilies(vkSettings->physicalDevice);
 
 		VkCommandPoolCreateInfo commandPoolInfo{};
 		commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -535,11 +535,11 @@ namespace VulkanProject
 		commandPoolInfo.flags = 0; // Optional
 
 		// Command buffers are executed by submitting them on one of the device queues (graphics, presentation, etc.)
-		if (vkCreateCommandPool(vkSettings.logicalDevice, &commandPoolInfo, nullptr, &commandPool) != VK_SUCCESS)
+		if (vkCreateCommandPool(vkSettings->logicalDevice, &commandPoolInfo, nullptr, &commandPool) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create the command pool!");
 		}
-		log("Command pool created.");
+		LOG("Command pool created.");
 	}
 
 	void Renderer::createCommandBuffers()
@@ -554,11 +554,11 @@ namespace VulkanProject
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-		if (vkAllocateCommandBuffers(vkSettings.logicalDevice, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(vkSettings->logicalDevice, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to allocate command buffers!");
 		}
-		log("Command buffers allocated.");
+		LOG("Command buffers allocated.");
 
 		// Command buffer recording
 		for (size_t i = 0; i < commandBuffers.size(); i++)
@@ -594,13 +594,13 @@ namespace VulkanProject
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 			// Bind the vertex buffer during rendering operations
-			VkBuffer vertexBuffers[] = { vertexBuffer };
+			VkBuffer vertexBuffers[] = { vertexBuffer.getBuffer()};
 			VkDeviceSize offsets[] = { 0 };
 
 			// First two parameters (besides command buffer) specifies the offset and number of bindings to specify vertex buffers for
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 			// Bind a descriptor set to the current command buffer and the graphics pipeline (not compute pipeline)
 			// 'PipelineLayout' is the layotut the descriptors are based on
@@ -616,7 +616,7 @@ namespace VulkanProject
 				throw std::runtime_error("Failed to record command buffer!");
 			}
 		}
-		log("Command buffers recorded.");
+		LOG("Command buffers recorded.");
 	}
 
 	/*
@@ -648,14 +648,14 @@ namespace VulkanProject
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			if (vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS
-				|| vkCreateSemaphore(vkSettings.logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS
-				|| vkCreateFence(vkSettings.logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+			if (vkCreateSemaphore(vkSettings->logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS
+				|| vkCreateSemaphore(vkSettings->logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS
+				|| vkCreateFence(vkSettings->logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to create semaphores for a frame!");
 			}
 		}
-		log("Semaphores created.");
+		LOG("Semaphores created.");
 	}
 
 	void Renderer::recreateSwapchain()
@@ -671,7 +671,7 @@ namespace VulkanProject
 		}
 
 		// Wait so we don't touch resources that may currently be in use
-		vkDeviceWaitIdle(vkSettings.logicalDevice);
+		vkDeviceWaitIdle(vkSettings->logicalDevice);
 
 		cleanUpSwapchain();
 
@@ -694,186 +694,44 @@ namespace VulkanProject
 	{
 		for (auto framebuffer : swapchainFramebuffers)
 		{
-			vkDestroyFramebuffer(vkSettings.logicalDevice, framebuffer, nullptr);
+			vkDestroyFramebuffer(vkSettings->logicalDevice, framebuffer, nullptr);
 		}
-		log("Framebuffers destroyed.");
+		LOG("Framebuffers destroyed.");
 
 		// Free up the existing command buffers rather than re-allocating them again in the command pool (wasteful)
-		vkFreeCommandBuffers(vkSettings.logicalDevice, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+		vkFreeCommandBuffers(vkSettings->logicalDevice, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-		vkDestroyPipeline(vkSettings.logicalDevice, graphicsPipeline, nullptr);
-		log("Graphics pipeline destroyed.");
+		vkDestroyPipeline(vkSettings->logicalDevice, graphicsPipeline, nullptr);
+		LOG("Graphics pipeline destroyed.");
 
-		vkDestroyPipelineLayout(vkSettings.logicalDevice, pipelineLayout, nullptr);
-		log("Pipeline layout destroyed.");
+		vkDestroyPipelineLayout(vkSettings->logicalDevice, pipelineLayout, nullptr);
+		LOG("Pipeline layout destroyed.");
 
-		vkDestroyRenderPass(vkSettings.logicalDevice, renderPass, nullptr);
-		log("RenderPass destroyed.");
+		vkDestroyRenderPass(vkSettings->logicalDevice, renderPass, nullptr);
+		LOG("RenderPass destroyed.");
 
 		for (auto imageView : swapchainImageViews)
 		{
-			vkDestroyImageView(vkSettings.logicalDevice, imageView, nullptr);
+			vkDestroyImageView(vkSettings->logicalDevice, imageView, nullptr);
 		}
-		log("Image views destroyed.");
+		LOG("Image views destroyed.");
 
-		vkDestroySwapchainKHR(vkSettings.logicalDevice, swapchain, nullptr);
-		log("Swapchain destroyed.");
+		vkDestroySwapchainKHR(vkSettings->logicalDevice, swapchain, nullptr);
+		LOG("Swapchain destroyed.");
 
 		for (size_t i = 0; i < swapchainImages.size(); i++)
 		{
-			vkDestroyBuffer(vkSettings.logicalDevice, uniformBuffers[i], nullptr);
-			vkFreeMemory(vkSettings.logicalDevice, uniformBuffersMemory[i], nullptr);
+			vkDestroyBuffer(vkSettings->logicalDevice, uniformBuffers.at(i).getBuffer(), nullptr);
+			vkFreeMemory(vkSettings->logicalDevice, uniformBuffers.at(i).getBufferMemory(), nullptr);
 		}
 
-		vkDestroyDescriptorPool(vkSettings.logicalDevice, descriptorPool, nullptr);
+		vkDestroyDescriptorPool(vkSettings->logicalDevice, descriptorPool, nullptr);
 	}
 
 	void Renderer::framebufferResizeCallback(GLFWwindow* window, int width, int height)
 	{
 		auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
 		app->framebufferResized = true;
-	}
-
-	void Renderer::createVertexBuffer()
-	{
-		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-		// Create a staging buffer. This will allow us to load the vertex information into this CPU-accessible buffer and then 'transfer' the memory
-		// contents to a buffer on the GPU (not visible from CPU) that utilizes high performance memory
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-		// Copy the vertex data to the buffer. This requires mapping the buffer memory into CPU accessible memory
-		void* stagingData;
-		vkMapMemory(vkSettings.logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &stagingData);
-		memcpy(stagingData, vertices.data(), (size_t)bufferSize);
-		vkUnmapMemory(vkSettings.logicalDevice, stagingBufferMemory);
-
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-		// Cleanup resources after copying the data from the CPU-accessible 'stagingBuffer' to the high performance memory, GPU-accessible buffer
-		vkDestroyBuffer(vkSettings.logicalDevice, stagingBuffer, nullptr);
-		vkFreeMemory(vkSettings.logicalDevice, stagingBufferMemory, nullptr);
-	}
-
-	uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
-	{
-		// Query information about the available types of memory
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(vkSettings.physicalDevice, &memProperties);
-
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-		{
-			// Locate a memory type that is suitable for the vertex buffer as well as writing vertex data to the memory
-			// Memory type array specifies heap and properties of each type of memory i.e. being able to write to it from the CPU
-			// Check if the result of the bitwise AND is not just non-zero, but equal to the desired property's bit field
-			// (If there is a memory type suitable for the buffer that also has all the properties we need)
-			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				return i; 
-			}
-		}
-
-		throw std::runtime_error("Unable to find memory type suitable for the vertex buffer!");
-	}
-
-	void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
-	{
-		VkBufferCreateInfo bufferInfo{};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = size;
-		bufferInfo.usage = usage;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		if (vkCreateBuffer(vkSettings.logicalDevice, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create buffer!");
-		}
-
-		// Assign memory to the buffer
-		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(vkSettings.logicalDevice, buffer, &memRequirements);
-
-		// Allocate the memory
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-		if (vkAllocateMemory(vkSettings.logicalDevice, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to allocate buffer memory!");
-		}
-
-		// Associate the memory to the vertex buffer handle
-		vkBindBufferMemory(vkSettings.logicalDevice, buffer, bufferMemory, 0);
-	}
-
-	/*
-	* Copy the memory contents of the 'src' buffer to the 'dst' buffer. This requires the usage of a temporary command buffer to execute the memory transfer operation.
-	*/
-	void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-	{
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandPool = commandPool;
-		allocInfo.commandBufferCount = 1;
-
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(vkSettings.logicalDevice, &allocInfo, &commandBuffer);
-
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-		// Only going to use the command buffer once and wait to return from this method until the copy operation has finished executing
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-		// Specify the region of memory to copy from one buffer to the next
-		VkBufferCopy copyRegion{};
-		copyRegion.srcOffset = 0; // Optional
-		copyRegion.dstOffset = 0; // Optional
-		copyRegion.size = size;
-		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-		vkEndCommandBuffer(commandBuffer);
-
-		// Execute the command buffer to complete the transfer
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-
-		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(graphicsQueue);
-
-		vkFreeCommandBuffers(vkSettings.logicalDevice, commandPool, 1, &commandBuffer);
-	}
-
-	void Renderer::createIndexBuffer()
-	{
-		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-		void* stagingBufferData;
-		vkMapMemory(vkSettings.logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &stagingBufferData);
-		memcpy(stagingBufferData, indices.data(), (size_t)bufferSize);
-		vkUnmapMemory(vkSettings.logicalDevice, stagingBufferMemory);
-
-		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-		vkDestroyBuffer(vkSettings.logicalDevice, stagingBuffer, nullptr);
-		vkFreeMemory(vkSettings.logicalDevice, stagingBufferMemory, nullptr);
 	}
 
 	void Renderer::createDescriptorSetLayout()
@@ -893,60 +751,33 @@ namespace VulkanProject
 		layoutInfo.bindingCount = 1;
 		layoutInfo.pBindings = &uboLayoutBinding;
 
-		if (vkCreateDescriptorSetLayout(vkSettings.logicalDevice, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+		if (vkCreateDescriptorSetLayout(vkSettings->logicalDevice, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create descriptor set layout!");
 		}
-		log("Descriptor set layout created.");
+		LOG("Descriptor set layout created.");
 	}
 
 	void Renderer::createUniformBuffers()
 	{
-		VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+		VkDeviceSize bufferSize = sizeof(UniformBuffer::UniformBufferObject);
 
 		uniformBuffers.resize(swapchainImages.size());
-		uniformBuffersMemory.resize(swapchainImages.size());
 
 		for (size_t i = 0; i < swapchainImages.size(); i++)
 		{
-			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+			Buffer::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers.at(i).getBuffer(), uniformBuffers.at(i).getBufferMemory());
 		}
 	}
 
-	/*
-	* Ensure the geometry rotates 90 degrees every second regardless of frame rate
-	*/
-	void Renderer::updateUniformBuffer(uint32_t currentImage)
+	void Renderer::createVertexBuffers()
 	{
-		static auto startTime = std::chrono::high_resolution_clock::now();
+		vertexBuffer = VertexBuffer(vertices, graphicsQueue, commandPool);
+	}
 
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-		// Define the transformation to perform
-		// glm::rotate takes an existing transformation (glm::mat4(..)) - identity matrix
-			// rotation angle
-			// rotation axis
-		int numberOfSecondsPerRotation = 3;
-		UniformBufferObject ubo{};
-		ubo.model = glm::rotate(glm::mat4(1.0f), numberOfSecondsPerRotation * time * glm::radians(90.0f), glm::vec3(0.5f, 0.0f, 1.0f));
-
-		// Looking at geometry from above at a 45-degree angle
-		// glm::lookAt takes the eye position, center position, and up axis as parameters
-		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-		// Use a perspective projection with a 45-degree vertical field of view
-		// Also takes the aspect ratio and near / far planes
-		ubo.proj = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
-
-		// GLM was originally designed for OpenGL (inverted Y-axis) - multiply projection scaling by -1 to correct for Vulkan otherwise the image will appear upside-down
-		ubo.proj[1][1] *= -1;
-
-		// Copy the data in the UniformBufferObject to the current uniform buffer
-		void* data;
-		vkMapMemory(vkSettings.logicalDevice, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
-		memcpy(data, &ubo, sizeof(ubo));
-		vkUnmapMemory(vkSettings.logicalDevice, uniformBuffersMemory[currentImage]);
+	void Renderer::createIndexBuffers()
+	{
+		indexBuffer = IndexBuffer(indices, graphicsQueue, commandPool);
 	}
 
 	void Renderer::createDescriptorPool()
@@ -966,11 +797,11 @@ namespace VulkanProject
 	
 		poolInfo.flags = 0; // Optional
 
-		if (vkCreateDescriptorPool(vkSettings.logicalDevice, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+		if (vkCreateDescriptorPool(vkSettings->logicalDevice, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create descriptor pool!");
 		}
-		log("Descriptor pool created.");
+		LOG("Descriptor pool created.");
 	}
 
 	void Renderer::createDescriptorSets()
@@ -985,19 +816,19 @@ namespace VulkanProject
 
 		// Allocate descriptor sets each with one uniform buffer descriptor
 		descriptorSets.resize(swapchainImages.size());
-		if (vkAllocateDescriptorSets(vkSettings.logicalDevice, &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+		if (vkAllocateDescriptorSets(vkSettings->logicalDevice, &allocInfo, descriptorSets.data()) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to allocate descriptor sets!");
 		}
-		log("Descriptor sets allocated.");
+		LOG("Descriptor sets allocated.");
 
 		// Populate each uniform buffer descriptor with a uniform buffer
 		for (size_t i = 0; i < swapchainImages.size(); i++)
 		{
 			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.buffer = uniformBuffers.at(i).getBuffer();
 			bufferInfo.offset = 0;
-			bufferInfo.range = sizeof(UniformBufferObject);
+			bufferInfo.range = sizeof(UniformBuffer::UniformBufferObject);
 
 			// Update the configuration of the descriptor sets
 			VkWriteDescriptorSet descriptorWrite{};
@@ -1021,7 +852,7 @@ namespace VulkanProject
 			descriptorWrite.pImageInfo = nullptr; // Optional
 			descriptorWrite.pTexelBufferView = nullptr; // Optional
 
-			vkUpdateDescriptorSets(vkSettings.logicalDevice, 1, &descriptorWrite, 0, nullptr);
+			vkUpdateDescriptorSets(vkSettings->logicalDevice, 1, &descriptorWrite, 0, nullptr);
 		}
 	}
 
@@ -1029,13 +860,13 @@ namespace VulkanProject
 	{
 		// Wait for the fence to ensure the current frame is finished being presented
 		// Waits for any of the fences to be finished before returning - VK_TRUE indicates to wait for all fences
-		vkWaitForFences(vkSettings.logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(vkSettings->logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
 		// Acquire an image from the swapchain
 		// UINT64_MAX disables timeout in nanoseconds for an image to become available
 		// Image index refers to the image in swapchain image array. This is used to select the correct command buffer
 		uint32_t imageIndex;
-		VkResult result = vkAcquireNextImageKHR(vkSettings.logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(vkSettings->logicalDevice, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 		// Detect a window resize, recreate the swapchain to match the new resolution, and try presenting on the next 'drawFrame'
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -1048,12 +879,12 @@ namespace VulkanProject
 			throw std::runtime_error("Failed to acquire swapchain image!");
 		}
 
-		updateUniformBuffer(imageIndex);
+		uniformBuffers.at(imageIndex).update(swapchainExtent);
 
 		// Check if a previous frame is using this image (i.e. there is its fence to wait on)
 		if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 		{
-			vkWaitForFences(vkSettings.logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+			vkWaitForFences(vkSettings->logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 		}
 
 		// Mark the image as currently being 'in use' by this frame
@@ -1079,7 +910,7 @@ namespace VulkanProject
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
-		vkResetFences(vkSettings.logicalDevice, 1, &inFlightFences[currentFrame]);
+		vkResetFences(vkSettings->logicalDevice, 1, &inFlightFences[currentFrame]);
 
 		// Submit the command buffer to the graphics queue
 		// Utilize the current fence to synchronize the CPU operations with the rendering of frames on the GPU (prevents the GPU from being overwhelmed)
@@ -1124,8 +955,8 @@ namespace VulkanProject
 	void Renderer::calculateFPS()
 	{
 		static std::chrono::time_point<std::chrono::steady_clock> oldTime = std::chrono::high_resolution_clock::now();
-		static int fps = 0;
-	
+		static uint32_t fps;
+
 		fps++;
 
 		if (std::chrono::duration_cast<std::chrono::seconds>(
@@ -1136,10 +967,5 @@ namespace VulkanProject
 			glfwSetWindowTitle(&Window::getInstance(), ss.str().c_str());
 			fps = 0;
 		}
-	}
-
-	VulkanSettings Renderer::getVulkanSettings() const
-	{
-		return vkSettings;
 	}
 }

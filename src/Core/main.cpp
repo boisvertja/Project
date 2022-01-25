@@ -1,12 +1,14 @@
 #include "../Renderer/Renderer.h"
 
+using namespace VulkanProject;
+
 int main()
 {
 	try
 	{
-		GLFWwindow& window = VulkanProject::Window::getInstance();
-		VulkanProject::Renderer renderer = VulkanProject::Renderer();
-
+		GLFWwindow& window = Window::getInstance();
+		Renderer renderer = Renderer();
+		
 		while (!glfwWindowShouldClose(&window))
 		{
 			glfwPollEvents();
@@ -14,11 +16,11 @@ int main()
 			renderer.calculateFPS();
 		}
 
-		vkDeviceWaitIdle(renderer.getVulkanSettings().getLogicalDevice());
+		vkDeviceWaitIdle(VulkanSettings::getInstance()->getLogicalDevice());
 
-		log("\nCleaning resources...");
-		log("=========================");
-		VulkanProject::Window::cleanUp();
+		LOG("\nCleaning resources...");
+		LOG("=========================");
+		Window::cleanUp();
 	}
 	catch (const std::exception& e)
 	{
@@ -28,3 +30,4 @@ int main()
 
 	return EXIT_SUCCESS;
 }
+#pragma warning(pop)

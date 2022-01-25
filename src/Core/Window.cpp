@@ -34,7 +34,7 @@ namespace VulkanProject
 	{
 		glfwDestroyWindow(&Window::getInstance());
 		glfwTerminate();
-		log("GLFW resources cleaned up.");
+		LOG("GLFW resources cleaned up.");
 	}
 
 	const char* Window::getWindowTitle()

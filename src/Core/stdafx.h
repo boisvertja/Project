@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <tchar.h>
 
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -16,9 +17,13 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#pragma warning(push)
+#pragma warning(disable : 26812)
 
 #ifdef _DEBUG
-#define log(x) std::cout << x << std::endl
+#define LOG(x) std::cout << x << std::endl
 #else
-#define log(x)
+#define LOG(x)
 #endif

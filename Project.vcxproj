@@ -149,8 +149,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\Renderer\IndexBuffer.h" />
     <ClInclude Include="src\Renderer\Buffer.h" />
-    <ClInclude Include="src\Renderer\FrameBuffer.h" />
     <ClInclude Include="src\Core\stdafx.h" />
     <ClInclude Include="src\Core\targetver.h" />
     <ClInclude Include="src\Core\VulkanSettings.h" />
@@ -165,8 +165,8 @@
     <ClInclude Include="src\Renderer\VertexBuffer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Renderer\IndexBuffer.cpp" />
     <ClCompile Include="src\Renderer\Buffer.cpp" />
-    <ClCompile Include="src\Renderer\FrameBuffer.cpp" />
     <ClCompile Include="src\Core\main.cpp" />
     <ClCompile Include="src\Core\stdafx.cpp" />
     <ClCompile Include="src\Core\targetver.cpp" />

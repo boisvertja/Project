@@ -1,12 +1,11 @@
 #pragma once
-#define GLM_FORCE_RADIANS // Necessary to ensure that matrix transformation methods use radians as arguments
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES // Necessary to ensure all data types in shaders (vec2, mat4, etc.) meet the alignment requirement (multiples of 16 bytes in size)
-#include <array>
-#include <chrono>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include "Shader.h"
-#include "../Core/VulkanSettings.h"
+#include "IndexBuffer.h"
+#include "UniformBuffer.h"
+#include "VertexBuffer.h"
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
 namespace VulkanProject
 {
@@ -17,7 +16,6 @@ namespace VulkanProject
 		~Renderer();
 		void drawFrame();
 		void calculateFPS();
-		VulkanSettings getVulkanSettings() const;
 
 	private:
 		void init();
@@ -37,14 +35,10 @@ namespace VulkanProject
 		void recreateSwapchain();
 		void cleanUpSwapchain();
 		static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
-		void createVertexBuffer();
-		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-		void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-		void createIndexBuffer();
 		void createDescriptorSetLayout();
+		void createVertexBuffers();
+		void createIndexBuffers();
 		void createUniformBuffers();
-		void updateUniformBuffer(uint32_t currentImage);
 		void createDescriptorPool();
 		void createDescriptorSets();
 
@@ -72,68 +66,12 @@ namespace VulkanProject
 		std::vector<VkSemaphore> renderFinishedSemaphores;
 		std::vector<VkFence> inFlightFences;
 		std::vector<VkFence> imagesInFlight;
-		const int MAX_FRAMES_IN_FLIGHT = 2;
+		const int32_t MAX_FRAMES_IN_FLIGHT = 2;
 		bool framebufferResized;
 		size_t currentFrame = 0;
+		VulkanSettings* vkSettings = VulkanSettings::getInstance();
 
-		VulkanSettings vkSettings = VulkanSettings();
-
-		struct Vertex
-		{
-			glm::vec2 pos;
-			glm::vec3 color;
-
-			/*
-			* Describes at which rate to load data from memory throughout the vertices of the shader.
-			* Also specifies the number of bytes between data entries (stride)
-			*/
-			static VkVertexInputBindingDescription getBindingDescription()
-			{
-				VkVertexInputBindingDescription bindingDescription{};
-				bindingDescription.binding = 0;
-				bindingDescription.stride = sizeof(Vertex);
-
-				// Move to the next data entry after each vertex
-				bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-				return bindingDescription;
-			}
-
-			/*
-			* Describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description
-			*/
-			static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
-			{
-				// There are two attributes, description and color, so there are two attribute description structs
-				std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-
-				// Tells Vulkan from which binding the per-vertex data comes
-				attributeDescriptions[0].binding = 0;
-
-				// References the 'location' directive of the input in the vertex shader
-				attributeDescriptions[0].location = 0;
-
-				// Describes the type of data for the attribute
-				attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-				attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-				attributeDescriptions[1].binding = 0;
-				attributeDescriptions[1].location = 1;
-				attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-				attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-				return attributeDescriptions;
-			}
-		};
-
-		struct UniformBufferObject
-		{
-			glm::mat4 model;
-			glm::mat4 view;
-			glm::mat4 proj;
-		};
-
-		const std::vector<Vertex> vertices =
+		const std::vector<VertexBuffer::Vertex> vertices =
 		{
 			{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
 			{{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
@@ -146,13 +84,9 @@ namespace VulkanProject
 			0, 1, 2, 2, 3, 0
 		};
 
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
-		VkBuffer indexBuffer;
-		VkDeviceMemory indexBufferMemory;
-
-		std::vector<VkBuffer> uniformBuffers;
-		std::vector<VkDeviceMemory> uniformBuffersMemory;
+		VertexBuffer vertexBuffer;
+		IndexBuffer indexBuffer;
+		std::vector<UniformBuffer> uniformBuffers;
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;

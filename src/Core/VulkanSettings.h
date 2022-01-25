@@ -1,7 +1,6 @@
 #pragma once
 #include "stdafx.h"
 #include <algorithm>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <optional>
@@ -21,12 +20,13 @@ namespace VulkanProject
 	class VulkanSettings
 	{
 	public:
-
-		VulkanSettings();
-		~VulkanSettings();
+		static VulkanSettings* getInstance();
 		VkDevice getLogicalDevice() const;
+		VkPhysicalDevice getPhysicalDevice() const;
 
 	private:
+		VulkanSettings();
+		~VulkanSettings();
 
 		struct QueueFamilyIndices
 		{
@@ -85,6 +85,7 @@ namespace VulkanProject
 		void createSurface();
 
 	private:
+		static VulkanSettings* vkSettings;
 
 		VkInstance instance;
 		VkDebugUtilsMessengerEXT debugMessenger;
