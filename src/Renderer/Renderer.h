@@ -1,4 +1,5 @@
 #pragma once
+#include "Scene.h"
 #include "Shader.h"
 #include "IndexBuffer.h"
 #include "UniformBuffer.h"
@@ -12,14 +13,17 @@ namespace VulkanProject
 	class Renderer
 	{
 	public:
-		Renderer();
-		~Renderer();
+		static Renderer* getInstance();
 		void drawFrame();
 		void calculateFPS();
+		void cleanUp();
+		VkCommandPool getCommandPool() const;
+		VkQueue getGraphicsQueue() const;
 
 	private:
+		Renderer();
+		~Renderer();
 		void init();
-		void cleanUp();
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
@@ -41,8 +45,11 @@ namespace VulkanProject
 		void createUniformBuffers();
 		void createDescriptorPool();
 		void createDescriptorSets();
+		void createTextures();
 
 	private:
+		static Renderer* renderer;
+
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
@@ -90,5 +97,7 @@ namespace VulkanProject
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;
+
+		std::vector<Texture> textures = std::vector<Texture>();
 	};
 }

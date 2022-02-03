@@ -38,28 +38,15 @@ namespace VulkanProject
     }
 
 	/*
-	* Copy the memory contents of the 'src' buffer to the 'dst' buffer. This requires the usage of a temporary command buffer to execute the memory transfer operation.
+	* Copy the memory contents of the 'src' buffer to the 'dst' buffer.
+	* This requires the usage of a temporary command buffer to execute the memory transfer operation.
 	*/
 	void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkQueue graphicsQueue, VkCommandPool commandPool)
 	{
 		VkDevice logicalDevice = VulkanSettings::getInstance()->getLogicalDevice();
 
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandPool = commandPool;
-		allocInfo.commandBufferCount = 1;
-
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer);
-
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-		// Only going to use the command buffer once and wait to return from this method until the copy operation has finished executing
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+		VkCommandBuffer commandBuffer = createCommandBuffer(commandPool);
+		beginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 		// Specify the region of memory to copy from one buffer to the next
 		VkBufferCopy copyRegion{};
@@ -68,18 +55,8 @@ namespace VulkanProject
 		copyRegion.size = size;
 		vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-		vkEndCommandBuffer(commandBuffer);
-
 		// Execute the command buffer to complete the transfer
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-
-		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(graphicsQueue);
-
-		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
+		endCommandBuffer(commandBuffer, graphicsQueue, commandPool);
 	}
 	
 	uint32_t Buffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
@@ -113,5 +90,61 @@ namespace VulkanProject
 	VkDeviceMemory& Buffer::getBufferMemory()
 	{
 		return bufferMemory;
+	}
+
+	VkCommandBuffer Buffer::createCommandBuffer(VkCommandPool commandPool)
+	{
+		VkDevice logicalDevice = VulkanSettings::getInstance()->getLogicalDevice();
+
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandPool = commandPool;
+		allocInfo.commandBufferCount = 1;
+
+		VkCommandBuffer commandBuffer;
+		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate command buffer!");
+		}
+
+		return commandBuffer;
+	}
+
+	void Buffer::beginCommandBuffer(VkCommandBuffer& commandBuffer, VkCommandBufferUsageFlagBits usageFlags)
+	{
+		VkDevice logicalDevice = VulkanSettings::getInstance()->getLogicalDevice();
+
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+		// Optional - specifies how we're going to use the command buffer i.e. one-time submit, per renderPass, etc.
+		beginInfo.flags = usageFlags;
+		beginInfo.pInheritanceInfo = nullptr; // Optional - only relevant for secondary command buffers (specifies which state to inherit from calling primary command buffer)
+
+		if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to begin recording command buffer!");
+		}
+	}
+
+	/*
+	 * Execute the command buffer to complete the transfer
+	*/
+	void Buffer::endCommandBuffer(VkCommandBuffer& commandBuffer, VkQueue graphicsQueue, VkCommandPool commandPool)
+	{
+		VkDevice logicalDevice = VulkanSettings::getInstance()->getLogicalDevice();
+
+		vkEndCommandBuffer(commandBuffer);
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(graphicsQueue);
+
+		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 	}
 }

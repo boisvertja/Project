@@ -4,7 +4,7 @@
 
 namespace VulkanProject
 {
-	class UniformBuffer : Buffer
+	class UniformBuffer : public Buffer
 	{
 	public:
 		UniformBuffer() = default;
@@ -18,7 +18,5 @@ namespace VulkanProject
 			glm::mat4 view;
 			glm::mat4 proj;
 		};
-
-		friend class Renderer;
 	};
 }

@@ -2,6 +2,17 @@
 
 namespace VulkanProject
 {
+	Renderer* Renderer::renderer = nullptr;
+
+	Renderer* Renderer::getInstance()
+	{
+		if (renderer == nullptr)
+		{
+			renderer = new Renderer();
+		}
+		return renderer;
+	}
+
 	Renderer::Renderer()
 	{
 		// Create callback for resizing the framebuffer
@@ -14,6 +25,8 @@ namespace VulkanProject
 	Renderer::~Renderer()
 	{
 		cleanUp();
+
+		delete renderer;
 	}
 
 	void Renderer::init()
@@ -26,6 +39,7 @@ namespace VulkanProject
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
+		createTextures();
 		createVertexBuffers();
 		createIndexBuffers();
 		createUniformBuffers();
@@ -44,6 +58,12 @@ namespace VulkanProject
 	void Renderer::cleanUp()
 	{
 		cleanUpSwapchain();
+
+		for (Texture texture : textures)
+		{
+			vkDestroyImage(vkSettings->logicalDevice, texture.getTextureImage(), nullptr);
+			vkFreeMemory(vkSettings->logicalDevice, texture.getTextureImageMemory(), nullptr);
+		}
 
 		vkDestroyDescriptorSetLayout(vkSettings->logicalDevice, descriptorSetLayout, nullptr);
 
@@ -547,31 +567,18 @@ namespace VulkanProject
 		// One of the drawing commands involves binding the correct framebuffer 
 		// so a new command buffer needs to be created for each image in the swapchain
 		commandBuffers.resize(swapchainFramebuffers.size());
-
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = commandPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
-
-		if (vkAllocateCommandBuffers(vkSettings->logicalDevice, &allocInfo, commandBuffers.data()) != VK_SUCCESS)
+		
+		for (int i = 0; i < commandBuffers.size(); i++)
 		{
-			throw std::runtime_error("Failed to allocate command buffers!");
+			commandBuffers[i] = Buffer::createCommandBuffer(commandPool);
 		}
 		LOG("Command buffers allocated.");
 
 		// Command buffer recording
 		for (size_t i = 0; i < commandBuffers.size(); i++)
 		{
-			VkCommandBufferBeginInfo beginInfo{};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = 0; // Optional - specifies how we're going to use the command buffer i.e. one-time submit, per renderPass, etc.
-			beginInfo.pInheritanceInfo = nullptr; // Optional - only relevant for secondary command buffers (specifies which state to inherit from calling primary command buffer)
+			Buffer::beginCommandBuffer(commandBuffers.at(i), VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
 
-			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
-			{
-				throw std::runtime_error("Failed to begin recording command buffer!");
-			}
 			// Begin the RenderPass
 			VkRenderPassBeginInfo renderPassInfo{};
 			renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -964,8 +971,24 @@ namespace VulkanProject
 			oldTime = std::chrono::high_resolution_clock::now();
 			std::stringstream ss;
 			ss << Window::getWindowTitle() << " | FPS: " << fps;
+			ss << " | Vertices: " << vertices.size();
 			glfwSetWindowTitle(&Window::getInstance(), ss.str().c_str());
 			fps = 0;
 		}
+	}
+
+	VkCommandPool Renderer::getCommandPool() const
+	{
+		return commandPool;
+	}
+
+	VkQueue Renderer::getGraphicsQueue() const
+	{
+		return graphicsQueue;
+	}
+
+	void Renderer::createTextures()
+	{
+		// TODO: Implement
 	}
 }

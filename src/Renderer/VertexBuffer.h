@@ -1,12 +1,13 @@
 #pragma once
-#include <array>
 #include "Buffer.h"
+
+#include <array>
 
 namespace VulkanProject
 {
-	class VertexBuffer : Buffer
+	class VertexBuffer : public Buffer
 	{
-	private:
+	public:
 		struct Vertex
 		{
 			glm::vec2 pos;
@@ -55,12 +56,9 @@ namespace VulkanProject
 			}
 		};
 
-	public:
 		VertexBuffer() = default;
 
 		VertexBuffer(std::vector<Vertex> vertices, VkQueue graphicsQueue, VkCommandPool commandPool);
 		~VertexBuffer();
-
-		friend class Renderer;
 	};
 }
